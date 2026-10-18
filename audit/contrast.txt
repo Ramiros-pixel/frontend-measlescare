@@ -1,0 +1,13 @@
+#0F172A on #FFFFFF (teks utama di kartu (surface)): 17.85:1 | teks normal PASS | teks besar PASS
+#0F172A on #F8FAFC (teks utama di latar halaman): 17.06:1 | teks normal PASS | teks besar PASS
+#46586E on #FFFFFF (teks sekutu/muted di kartu): 7.29:1 | teks normal PASS | teks besar PASS
+#46586E on #F8FAFC (teks sekutu/muted di latar halaman): 6.97:1 | teks normal PASS | teks besar PASS
+#FFFFFF on #175CD3 (teks tombol primary): 5.99:1 | teks normal PASS | teks besar PASS
+#175CD3 on #FFFFFF (teks tautan/ikon primary di kartu): 5.99:1 | teks normal PASS | teks besar PASS
+#175CD3 on #EAF1FD (teks primary di latar soft (nav aktif)): 5.27:1 | teks normal PASS | teks besar PASS
+#B42318 on #FDECEA (teks error di latar danger-soft): 5.75:1 | teks normal PASS | teks besar PASS
+#067647 on #E6F4EA (teks sukses di latar success-soft): 5.01:1 | teks normal PASS | teks besar PASS
+#B54708 on #FDF1E5 (teks peringatan di latar warning-soft): 4.88:1 | teks normal PASS | teks besar PASS
+#175CD3 on #EAF1FD (teks info di latar info-soft): 5.27:1 | teks normal PASS | teks besar PASS
+
+Semua pasangan lolos 4.5:1 untuk teks normal

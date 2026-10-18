@@ -1,0 +1,89 @@
+@import 'tailwindcss';
+
+@font-face {
+  font-family: 'Public Sans';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('/fonts/public-sans-latin-wght-normal.woff2') format('woff2-variations');
+}
+
+@theme {
+  --font-sans: 'Public Sans', ui-sans-serif, system-ui, sans-serif;
+
+  --color-primary: #175cd3;
+  --color-primary-hover: #124fb8;
+  --color-primary-soft: #eaf1fd;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f8fafc;
+  /* Border interaktif harus 3:1 terhadap latar (WCAG 1.4.11); nilai
+     diverifikasi di audit/contrast.txt. Border pembatas pasif memakai
+     --color-border-soft agar hierarki visual tetap halus. */
+  --color-border: #64748b;
+  --color-border-soft: #d8e0ea;
+  --color-text: #0f172a;
+  --color-muted: #46586e;
+  --color-success: #067647;
+  --color-success-soft: #e6f4ea;
+  --color-warning: #b54708;
+  --color-warning-soft: #fdf1e5;
+  --color-danger: #b42318;
+  --color-danger-soft: #fdecea;
+  --color-info: #175cd3;
+  --color-info-soft: #eaf1fd;
+
+}
+
+/* Kontras pasangan teks di bawah diverifikasi dengan contrast-check.py (R-25).
+   Lihat audit/contrast.txt untuk hasil pemindaian. */
+:root {
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-border-soft) 25%,
+    var(--color-surface) 50%,
+    var(--color-border-soft) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-wave 1.2s ease-in-out infinite;
+}
+
+@keyframes skeleton-wave {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
