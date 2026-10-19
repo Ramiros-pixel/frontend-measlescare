@@ -44,7 +44,7 @@ export function UserLayout() {
   const handleLogout = () => {
     logout()
     queryClient.clear()
-    navigate('/login', { replace: true })
+    navigate('/', { replace: true })
   }
 
   return (

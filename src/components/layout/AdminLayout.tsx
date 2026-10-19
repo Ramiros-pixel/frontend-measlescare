@@ -44,7 +44,7 @@ export function AdminLayout() {
   const handleLogout = () => {
     logout()
     queryClient.clear()
-    navigate('/login', { replace: true })
+    navigate('/', { replace: true })
   }
 
   const items = [...ADMIN_NAV, { to: '/beranda', label: 'Area pengguna', icon: 'area-user' }]
