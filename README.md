@@ -24,10 +24,10 @@ npm run preview
 
 | Variabel | Wajib | Arti |
 |---|---|---|
-| `VITE_API_BASE_URL` | tidak | Alamat backend tanpa akhiran `/api` (contoh: `https://host`). Kosong = pakai proxy dev `/be-api`. |
+| `VITE_API_BASE_URL` | tidak | Alamat backend (contoh: `https://host` atau `https://host/api` — `/api` ditambahkan otomatis bila belum ada). Kosong = pakai proxy dev `/be-api`. |
 | `VITE_PROXY_TARGET` | tidak | Target proxy dev; default `http://localhost:8000`. |
 
-Catatan penting: instance backend yang berjalan memuat route **tanpa** prefix `/api` (compose menyetel `API_PREFIX=""`), sedangkan `Documentation.md` menulis endpoint dengan `/api`. Aplikasi mengikuti kondisi nyata server (tanpa `/api`) dan mengirim `Authorization: Bearer <token>` untuk endpoint terproteksi.
+Catatan penting: backend yang berjalan di `https://ramirosservers.tail2d4b04.ts.net` menyajikan route **dengan** prefix `/api` (terverifikasi: `POST /api/auth/login`). `src/api/client.ts` otomatis menambahkan prefix `/api` pada `VITE_API_BASE_URL` bila belum ada, dan mengirim `Authorization: Bearer <token>` untuk endpoint terproteksi.
 
 ## Pengujian
 

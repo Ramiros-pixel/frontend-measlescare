@@ -1,8 +1,15 @@
-const RAW_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined
+// Kosong = mode dev lewat proxy Vite /be-api -> http://localhost:8000 (di-rewrite ke /api/*).
+// Produksi: set VITE_API_BASE_URL ke domain backend. Prefix /api ditambahkan otomatis
+// bila belum ada, jadi contoh berikut sama saja hasilnya:
+//   https://ramirosservers.tail2d4b04.ts.net  atau  https://ramirosservers.tail2d4b04.ts.net/api
+const RAW_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() ?? ''
 
-// Kosong = mode dev lewat proxy Vite /be-api -> http://localhost:8000.
-// Produksi: set VITE_API_BASE_URL ke domain backend (mis. funnel), path tanpa /api.
-export const API_BASE = (RAW_BASE && RAW_BASE.trim()) || '/be-api'
+function normalizeBase(raw: string): string {
+  const base = raw.replace(/\/+$/, '') // buang "/" di akhir agar tidak jadi "//api/auth/login"
+  return base.endsWith('/api') ? base : `${base}/api` // backend memakai prefix /api
+}
+
+export const API_BASE = RAW_BASE ? normalizeBase(RAW_BASE) : '/be-api'
 
 const TOKEN_KEY = 'mc.token'
 

@@ -13,7 +13,8 @@ export default defineConfig({
       '/be-api': {
         target: process.env.VITE_PROXY_TARGET || 'http://localhost:8000',
         changeOrigin: true,
-        rewrite: (p) => p.replace(/^\/be-api/, ''),
+        // Frontend memakai prefix /api: rewrite /be-api/auth/x -> /api/auth/x
+        rewrite: (p) => p.replace(/^\/be-api/, '/api'),
       },
     },
   },
