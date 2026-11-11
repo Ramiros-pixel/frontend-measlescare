@@ -1,7 +1,6 @@
-import { Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from '@/auth/AuthContext'
 import { PublicOnly, RequireAuth } from '@/routes/guards'
-import LandingPage from '@/pages/LandingPage'
 import LoginPage from '@/pages/LoginPage'
 import RegisterPage from '@/pages/RegisterPage'
 import HomePage from '@/pages/HomePage'
@@ -16,15 +15,28 @@ import AdminRecordsPage from '@/pages/admin/AdminRecordsPage'
 import NotFoundPage from '@/pages/NotFoundPage'
 import { UserLayout } from '@/components/layout/UserLayout'
 import { AdminLayout } from '@/components/layout/AdminLayout'
+import { UserPublicLayout } from '@/components/layout/UserPublicLayout'
+import BerandaPage from '@/pages/user/BerandaPage'
+import FungsiAlatPage from '@/pages/user/FungsiAlatPage'
+import CaraPenggunaanPage from '@/pages/user/CaraPenggunaanPage'
 
 export default function App() {
   return (
     <AuthProvider>
       <Routes>
+        {/* Halaman awal publik untuk sisi user MeaslesCare. */}
+        <Route path="/" element={<Navigate to="/user" replace />} />
+
         <Route element={<PublicOnly />}>
-          <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+        </Route>
+
+        {/* ═══════ User public pages (no auth required) ═══════ */}
+        <Route path="/user" element={<UserPublicLayout />}>
+          <Route index element={<BerandaPage />} />
+          <Route path="fungsi-alat" element={<FungsiAlatPage />} />
+          <Route path="cara-penggunaan" element={<CaraPenggunaanPage />} />
         </Route>
 
         <Route element={<RequireAuth />}>
