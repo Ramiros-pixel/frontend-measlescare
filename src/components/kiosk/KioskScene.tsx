@@ -1,6 +1,6 @@
 
 import { Component, Suspense, useEffect, useState } from 'react'
-import type { ReactNode } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import { Canvas } from '@react-three/fiber'
 import {
   ContactShadows,
@@ -14,14 +14,15 @@ const MODEL_URL = '/models/screening-kiosk.glb'
 
 useGLTF.preload(MODEL_URL)
 
+interface KioskSceneProps {
+  sectionRef?: RefObject<HTMLElement | null>
+}
+
 function KioskModel() {
   const { scene } = useGLTF(MODEL_URL)
 
   return (
-    <group
-      position={[0, -1.21, 0]}
-      scale={1.55}
-    >
+    <group position={[0, -1.21, 0]} scale={1.55}>
       <primitive object={scene} />
     </group>
   )
@@ -58,8 +59,8 @@ class KioskErrorBoundary extends Component<
       return (
         <div className="flex h-full w-full items-center justify-center p-6 text-center">
           <p className="max-w-xs text-sm text-[#647990]">
-            Model 3D belum dapat ditampilkan. Silakan periksa dukungan
-            WebGL pada browser.
+            Model 3D belum dapat ditampilkan. Silakan periksa dukungan WebGL
+            pada browser.
           </p>
         </div>
       )
@@ -69,11 +70,7 @@ class KioskErrorBoundary extends Component<
   }
 }
 
-function ReadySignal({
-  onReady,
-}: {
-  onReady: () => void
-}) {
+function ReadySignal({ onReady }: { onReady: () => void }) {
   useEffect(() => {
     onReady()
   }, [onReady])
@@ -81,8 +78,14 @@ function ReadySignal({
   return null
 }
 
-export default function KioskScene() {
+export default function KioskScene({
+  sectionRef,
+}: KioskSceneProps) {
   const [ready, setReady] = useState(false)
+
+  // sectionRef disediakan untuk menghubungkan komponen
+  // dengan section tentang alat pada LandingPage.
+  void sectionRef
 
   return (
     <div className="relative h-full w-full">
@@ -113,18 +116,12 @@ export default function KioskScene() {
           {/* Pencahayaan */}
           <ambientLight intensity={0.8} />
 
-          <directionalLight
-            position={[3, 5, 4]}
-            intensity={1.7}
-          />
+          <directionalLight position={[3, 5, 4]} intensity={1.7} />
 
-          <directionalLight
-            position={[-4, 2, -3]}
-            intensity={0.6}
-          />
+          <directionalLight position={[-4, 2, -3]} intensity={0.6} />
 
           <Suspense fallback={null}>
-            {/* Model kios diperbesar */}
+            {/* Model kios */}
             <KioskModel />
 
             {/* Bayangan alas */}

@@ -26,6 +26,7 @@ import BerandaPage from '@/pages/user/BerandaPage'
 import FungsiAlatPage from '@/pages/user/FungsiAlatPage'
 import CaraPenggunaanPage from '@/pages/user/CaraPenggunaanPage'
 import IdentifikasiPage from '@/pages/user/IdentifikasiPage'
+import SkriningPage from '@/pages/user/SkriningPage'
 
 export default function App() {
   return (
@@ -45,10 +46,15 @@ export default function App() {
           <Route path="cara-penggunaan" element={<CaraPenggunaanPage />} />
         </Route>
 
-        {/* Halaman identifikasi tanpa navbar */}
+        {/* Halaman identifikasi dan skrining tanpa navbar */}
         <Route
           path="/user/skrining/identifikasi"
           element={<IdentifikasiPage />}
+        />
+
+        <Route
+          path="/user/skrining/pemeriksaan"
+          element={<SkriningPage />}
         />
 
         {/* Halaman user yang membutuhkan autentikasi */}

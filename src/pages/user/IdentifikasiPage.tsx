@@ -1,7 +1,7 @@
 
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 
 type Screen = 'choose' | 'rfid' | 'face' | 'manual' | 'confirm' | 'screening'
 type Method = 'face' | 'rfid' | 'manual'
@@ -166,7 +166,7 @@ function PrimaryButton({
 export default function IdentifikasiPage() {
     const [screen, setScreen] = useState<Screen>('choose')
     const [patient, setPatient] = useState<Patient | null>(null)
-
+    const navigate = useNavigate()
     const [manualData, setManualData] = useState({
         nik: '',
         name: '',
@@ -414,10 +414,7 @@ export default function IdentifikasiPage() {
                         </div>
 
                         <div className="flex justify-center">
-                            <PrimaryButton onClick={() => {
-                                setPatient({ ...DEMO_PATIENT, source: 'face' })
-                                setScreen('confirm')
-                            }}>
+                            <PrimaryButton onClick={simulateFace}>
                                 Simulasikan Pencocokan Wajah
                             </PrimaryButton>
                         </div>
@@ -442,20 +439,7 @@ export default function IdentifikasiPage() {
                             </p>
                         </div>
 
-                        <form
-                            onSubmit={(event) => {
-                                event.preventDefault()
-                                setPatient({
-                                    name: manualData.name,
-                                    nik: `${manualData.nik.slice(0, 4)}********${manualData.nik.slice(-4)}`,
-                                    birthDate: manualData.birthDate,
-                                    gender: manualData.gender,
-                                    source: 'manual',
-                                })
-                                setScreen('confirm')
-                            }}
-                            className="space-y-3"
-                        >
+                        <form onSubmit={submitManual} className="space-y-3">
                             <div>
                                 <label htmlFor="nik" className="mb-1 block text-xs font-semibold text-[#183b5b]">
                                     Nomor Identitas
@@ -609,7 +593,15 @@ export default function IdentifikasiPage() {
                                 Identifikasi Ulang
                             </button>
 
-                            <PrimaryButton onClick={() => setScreen('screening')}>
+                            <PrimaryButton
+                                onClick={() => {
+                                    if (!patient) return
+
+                                    navigate('/user/skrining/pemeriksaan', {
+                                        state: { patient },
+                                    })
+                                }}
+                            >
                                 Konfirmasi dan Mulai Pemeriksaan
                                 <Icon name="arrow" size={18} />
                             </PrimaryButton>
