@@ -1,58 +1,59 @@
 
-import { useEffect, useState } from "react";
+import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 
 const slides = [
   {
-    label: "KIOS SKRINING CAMPAK",
-    title: "Deteksi dini campak, lebih cepat dan mudah.",
+    label: 'KIOS SKRINING CAMPAK',
+    title: 'Deteksi dini campak, lebih cepat dan mudah.',
     description:
-      "Lakukan skrining awal campak secara mandiri melalui kios MeaslesCare. Cukup gunakan kartu identitas, ambil foto ruam, dan isi gejala.",
-    button: "Mulai Skrining",
+      'Lakukan skrining awal campak secara mandiri melalui kios MeaslesCare. Cukup gunakan kartu identitas, ambil foto ruam, dan isi gejala.',
+    button: 'Mulai Skrining',
+    link: '/user/skrining/identifikasi',
   },
   {
-    label: "PEMERIKSAAN MANDIRI",
-    title: "Kenali gejala campak sejak dini.",
+    label: 'PEMERIKSAAN MANDIRI',
+    title: 'Kenali gejala campak sejak dini.',
     description:
-      "Lakukan pemeriksaan awal dengan mengikuti langkah-langkah sederhana melalui kios MeaslesCare. Prosesnya mudah dan dapat dilakukan secara mandiri.",
-    button: "Pelajari Cara Penggunaan",
+      'Lakukan pemeriksaan awal dengan mengikuti langkah-langkah sederhana melalui kios MeaslesCare. Prosesnya mudah dan dapat dilakukan secara mandiri.',
+    button: 'Pelajari Cara Penggunaan',
+    link: '/user/cara-penggunaan',
   },
   {
-    label: "HASIL SKRINING",
-    title: "Dapatkan hasil skrining dengan cepat dan mudah.",
+    label: 'HASIL SKRINING',
+    title: 'Dapatkan hasil skrining dengan cepat dan mudah.',
     description:
-      "Selesaikan tahapan pemeriksaan dan dapatkan hasil skrining awal beserta informasi dan saran tindak lanjut.",
-    button: "Lihat Fungsi Alat",
+      'Selesaikan tahapan pemeriksaan dan dapatkan hasil skrining awal beserta informasi dan saran tindak lanjut.',
+    button: 'Lihat Fungsi Alat',
+    link: '/user/fungsi-alat',
   },
-];
+]
 
 export default function BerandaPage() {
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [activeIndex, setActiveIndex] = useState(0)
 
-  const activeSlide = slides[activeIndex];
+  const activeSlide = slides[activeIndex]
 
   const nextSlide = () => {
-    setActiveIndex((current) => (current + 1) % slides.length);
-  };
+    setActiveIndex((current) => (current + 1) % slides.length)
+  }
 
   const prevSlide = () => {
     setActiveIndex(
-      (current) => (current - 1 + slides.length) % slides.length
-    );
-  };
+      (current) => (current - 1 + slides.length) % slides.length,
+    )
+  }
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setActiveIndex((current) => (current + 1) % slides.length);
-    }, 6000);
+      setActiveIndex((current) => (current + 1) % slides.length)
+    }, 6000)
 
-    return () => clearInterval(interval);
-  }, []);
+    return () => clearInterval(interval)
+  }, [])
 
   return (
-    <main
-      className="measles-hero"
-      data-slide={activeIndex}
-    >
+    <main className="measles-hero" data-slide={activeIndex}>
       {/* Abstract Background */}
       <div className="abstract-background" aria-hidden="true">
         <div className="abstract-blob blob-one" />
@@ -65,10 +66,7 @@ export default function BerandaPage() {
 
       {/* Main Content */}
       <section className="hero-content">
-        <div
-          className="hero-text"
-          key={activeIndex}
-        >
+        <div className="hero-text" key={activeIndex}>
           <span className="hero-label">
             <span className="label-dot" />
             {activeSlide.label}
@@ -78,18 +76,9 @@ export default function BerandaPage() {
 
           <p>{activeSlide.description}</p>
 
-          <a
-            href={
-              activeIndex === 0
-                ? "/skrining"
-                : activeIndex === 1
-                  ? "/user/cara-penggunaan"
-                  : "/user/fungsi-alat"
-            }
-            className="hero-button"
-          >
+          <Link to={activeSlide.link} className="hero-button">
             {activeSlide.button}
-          </a>
+          </Link>
         </div>
 
         {/* Carousel Navigation */}
@@ -121,11 +110,9 @@ export default function BerandaPage() {
                 type="button"
                 onClick={() => setActiveIndex(index)}
                 aria-label={`Buka slide ${index + 1}`}
-                aria-current={
-                  activeIndex === index ? "true" : undefined
-                }
+                aria-current={activeIndex === index ? 'true' : undefined}
                 className={`carousel-dot ${
-                  activeIndex === index ? "active" : ""
+                  activeIndex === index ? 'active' : ''
                 }`}
               />
             ))}
@@ -142,5 +129,5 @@ export default function BerandaPage() {
       {/* Bottom Decoration */}
       <div className="hero-bottom-wave" aria-hidden="true" />
     </main>
-  );
+  )
 }
