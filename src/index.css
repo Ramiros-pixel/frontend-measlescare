@@ -1,12 +1,22 @@
+
 @import 'tailwindcss';
+
+/* =========================================
+   FONT
+========================================= */
 
 @font-face {
   font-family: 'Public Sans';
   font-style: normal;
   font-display: swap;
   font-weight: 100 900;
-  src: url('/fonts/public-sans-latin-wght-normal.woff2') format('woff2-variations');
+  src: url('/fonts/public-sans-latin-wght-normal.woff2')
+    format('woff2-variations');
 }
+
+/* =========================================
+   THEME
+========================================= */
 
 @theme {
   --font-sans: 'Public Sans', ui-sans-serif, system-ui, sans-serif;
@@ -14,35 +24,44 @@
   --color-primary: #175cd3;
   --color-primary-hover: #124fb8;
   --color-primary-soft: #eaf1fd;
+
   --color-surface: #ffffff;
   --color-surface-muted: #f8fafc;
-  /* Border interaktif harus 3:1 terhadap latar (WCAG 1.4.11); nilai
-     diverifikasi di audit/contrast.txt. Border pembatas pasif memakai
-     --color-border-soft agar hierarki visual tetap halus. */
+
   --color-border: #64748b;
   --color-border-soft: #d8e0ea;
+
   --color-text: #0f172a;
   --color-muted: #46586e;
+
   --color-success: #067647;
   --color-success-soft: #e6f4ea;
+
   --color-warning: #b54708;
   --color-warning-soft: #fdf1e5;
+
   --color-danger: #b42318;
   --color-danger-soft: #fdecea;
+
   --color-info: #175cd3;
   --color-info-soft: #eaf1fd;
-
 }
 
-/* Kontras pasangan teks di bawah diverifikasi dengan contrast-check.py (R-25).
-   Lihat audit/contrast.txt untuk hasil pemindaian. */
+/* =========================================
+   GLOBAL
+========================================= */
+
 :root {
   color-scheme: light;
 }
 
+html {
+  min-height: 100%;
+}
+
 body {
   margin: 0;
-  background: var(--color-surface-muted);
+  background: #ffffff;
   color: var(--color-text);
   font-family: var(--font-sans);
   font-size: 15px;
@@ -59,6 +78,10 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* =========================================
+   SKELETON
+========================================= */
+
 .skeleton {
   background: linear-gradient(
     90deg,
@@ -74,10 +97,554 @@ body {
   from {
     background-position: 200% 0;
   }
+
   to {
     background-position: -200% 0;
   }
 }
+
+/* =========================================
+   MEASLESCARE ABSTRACT HERO BACKGROUND
+========================================= */
+
+.measles-hero {
+  position: relative;
+  isolation: isolate;
+
+  width: 100%;
+  min-height: 100dvh;
+  height: 100dvh;
+
+  margin-top: -88px;
+  padding-top: 88px;
+
+  overflow: hidden;
+
+  display: flex;
+  align-items: center;
+
+  background: #ffffff;
+}
+
+/* Background container */
+
+.abstract-background {
+  position: absolute;
+  inset: 0;
+
+  z-index: -1;
+
+  overflow: hidden;
+  pointer-events: none;
+
+  background: #ffffff;
+}
+
+/* Base blob */
+
+.abstract-blob {
+  position: absolute;
+
+  filter: blur(3px);
+  opacity: 0.75;
+
+  pointer-events: none;
+
+  transition:
+    transform 1.2s ease,
+    opacity 1.2s ease;
+}
+
+/* =========================================
+   BLOB 1 - TOP LEFT
+========================================= */
+
+.blob-one {
+  width: 280px;
+  height: 330px;
+
+  top: -190px;
+  left: -150px;
+
+  border-radius: 38% 62% 55% 45% / 45% 35% 65% 55%;
+
+  background: rgba(216, 226, 255, 0.45);
+
+  transform: rotate(25deg);
+}
+
+/* =========================================
+   BLOB 2 - TOP CENTER
+========================================= */
+
+.blob-two {
+  width: 470px;
+  height: 350px;
+
+  top: -200px;
+  left: 37%;
+
+  border-radius: 35% 65% 55% 45% / 45% 40% 60% 55%;
+
+  background: linear-gradient(
+    135deg,
+    rgba(139, 226, 216, 0.65),
+    rgba(105, 205, 220, 0.55)
+  );
+
+  transform: rotate(-25deg);
+}
+
+/* =========================================
+   BLOB 3 - TOP RIGHT
+========================================= */
+
+.blob-three {
+  width: 250px;
+  height: 250px;
+
+  top: -120px;
+  right: -100px;
+
+  border-radius: 50%;
+
+  background: rgba(105, 195, 225, 0.4);
+}
+
+/* =========================================
+   BLOB 4 - BOTTOM LEFT
+========================================= */
+
+.blob-four {
+  width: 500px;
+  height: 330px;
+
+  bottom: -200px;
+  left: -160px;
+
+  border-radius: 45% 55% 35% 65% / 55% 40% 60% 45%;
+
+  background: linear-gradient(
+    135deg,
+    rgba(100, 137, 232, 0.55),
+    rgba(151, 174, 246, 0.4)
+  );
+
+  transform: rotate(12deg);
+}
+
+/* =========================================
+   BLOB 5 - BOTTOM CENTER
+========================================= */
+
+.blob-five {
+  width: 320px;
+  height: 210px;
+
+  bottom: -160px;
+  left: 42%;
+
+  border-radius: 50% 50% 40% 60%;
+
+  background: rgba(176, 194, 255, 0.35);
+
+  transform: rotate(-20deg);
+}
+
+/* =========================================
+   BLOB 6 - RIGHT CENTER
+========================================= */
+
+.blob-six {
+  width: 300px;
+  height: 190px;
+
+  right: -150px;
+  top: 55%;
+
+  border-radius: 45% 55% 60% 40% / 45% 45% 55% 55%;
+
+  background: linear-gradient(
+    135deg,
+    rgba(117, 222, 210, 0.4),
+    rgba(160, 225, 235, 0.3)
+  );
+
+  transform: rotate(20deg);
+}
+
+/* =========================================
+   CAROUSEL BACKGROUND TRANSITIONS
+========================================= */
+
+/* Slide 2 */
+
+.measles-hero[data-slide="1"] .blob-two {
+  transform: translate(25px, 20px) rotate(-15deg);
+}
+
+.measles-hero[data-slide="1"] .blob-four {
+  transform: translate(20px, -10px) rotate(5deg);
+}
+
+/* Slide 3 */
+
+.measles-hero[data-slide="2"] .blob-two {
+  transform: translate(-25px, 15px) rotate(-35deg);
+}
+
+.measles-hero[data-slide="2"] .blob-six {
+  transform: translate(-25px, -20px) rotate(30deg);
+}
+
+/* =========================================
+   HERO CONTENT
+========================================= */
+
+.hero-content {
+  position: relative;
+  z-index: 2;
+
+  width: 100%;
+  max-width: 1280px;
+
+  margin: 0 auto;
+
+  /* Jarak konten dari navbar */
+  padding: 75px 7% 40px;
+
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* =========================================
+   HERO TEXT ANIMATION
+========================================= */
+
+.hero-text {
+  max-width: 690px;
+
+  animation: heroFadeIn 0.65s ease both;
+}
+
+@keyframes heroFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* =========================================
+   HERO LABEL
+========================================= */
+
+.hero-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+
+  padding: 9px 16px;
+
+  border-radius: 30px;
+
+  background: rgba(221, 248, 245, 0.8);
+  border: 1px solid rgba(110, 205, 195, 0.35);
+
+  color: #258f8c;
+
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+
+  margin-bottom: 25px;
+}
+
+.label-dot {
+  width: 8px;
+  height: 8px;
+
+  border-radius: 50%;
+
+  background: #35b8a9;
+
+  box-shadow: 0 0 0 4px rgba(53, 184, 169, 0.13);
+}
+
+/* =========================================
+   HERO HEADING
+========================================= */
+
+.hero-text h1 {
+  color: #183b5b;
+
+  font-size: clamp(38px, 5vw, 62px);
+  line-height: 1.13;
+
+  letter-spacing: -1.8px;
+  font-weight: 750;
+
+  margin: 0 0 24px;
+}
+
+/* =========================================
+   HERO DESCRIPTION
+========================================= */
+
+.hero-text p {
+  max-width: 570px;
+
+  color: #66798a;
+
+  font-size: 16px;
+  line-height: 1.85;
+
+  margin: 0 0 34px;
+}
+
+/* =========================================
+   HERO BUTTON - WITHOUT ARROW
+========================================= */
+
+.hero-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 15px 25px;
+
+  border-radius: 12px;
+
+  background: linear-gradient(
+    110deg,
+    #319fba,
+    #42b9ae
+  );
+
+  color: #ffffff;
+
+  font-size: 14px;
+  font-weight: 650;
+
+  text-decoration: none;
+
+  box-shadow: 0 9px 24px rgba(49, 159, 186, 0.2);
+
+  transition: all 0.25s ease;
+}
+
+.hero-button:hover {
+  transform: translateY(-3px);
+
+  box-shadow: 0 13px 28px rgba(49, 159, 186, 0.3);
+}
+
+/* =========================================
+   CAROUSEL NAVIGATION - RIGHT SIDE
+========================================= */
+
+.carousel-navigation {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+
+  width: 100%;
+  gap: 22px;
+
+  margin-top: 55px;
+  padding-right: 5px;
+}
+
+.carousel-controls {
+  display: flex;
+  gap: 9px;
+}
+
+/* Arrow buttons */
+
+.carousel-arrow {
+  width: 40px;
+  height: 40px;
+
+  border-radius: 50%;
+
+  border: 1px solid rgba(82, 148, 174, 0.3);
+
+  background: rgba(255, 255, 255, 0.85);
+
+  color: #347f9b;
+
+  font-size: 19px;
+
+  cursor: pointer;
+
+  transition: all 0.2s ease;
+}
+
+.carousel-arrow:hover {
+  color: #ffffff;
+
+  background: #349fb2;
+  border-color: #349fb2;
+}
+
+/* Slide indicators */
+
+.carousel-indicators {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.carousel-dot {
+  width: 8px;
+  height: 8px;
+
+  padding: 0;
+
+  border: none;
+  border-radius: 20px;
+
+  background: #cbd9e2;
+
+  cursor: pointer;
+
+  transition: all 0.3s ease;
+}
+
+.carousel-dot.active {
+  width: 28px;
+
+  background: #39aaa9;
+}
+
+/* Slide counter */
+
+.carousel-counter {
+  color: #668293;
+
+  font-size: 12px;
+  font-weight: 650;
+
+  letter-spacing: 1px;
+}
+
+.counter-divider {
+  margin: 0 7px;
+  color: #b3c4ce;
+}
+
+/* =========================================
+   BOTTOM DECORATION
+========================================= */
+
+.hero-bottom-wave {
+  position: absolute;
+
+  bottom: -1px;
+  left: 0;
+
+  width: 100%;
+  height: 25px;
+
+  background: linear-gradient(
+    90deg,
+    rgba(106, 161, 230, 0.2),
+    rgba(101, 209, 194, 0.22)
+  );
+
+  clip-path: ellipse(65% 100% at 50% 100%);
+
+  pointer-events: none;
+}
+
+/* =========================================
+   PUBLIC NAVBAR SUPPORT
+========================================= */
+
+header.sticky {
+  background: transparent;
+  border-bottom: none;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+/* =========================================
+   RESPONSIVE - TABLET & MOBILE
+========================================= */
+
+@media (max-width: 768px) {
+  .measles-hero {
+    height: auto;
+    min-height: 100dvh;
+
+    margin-top: -72px;
+    padding-top: 72px;
+  }
+
+  .hero-content {
+    padding: 90px 7% 80px;
+  }
+
+  .hero-text {
+    max-width: 100%;
+  }
+
+  .hero-text h1 {
+    font-size: clamp(36px, 9vw, 48px);
+    letter-spacing: -1px;
+  }
+
+  .hero-text p {
+    font-size: 14px;
+    line-height: 1.75;
+  }
+
+  .hero-label {
+    font-size: 10px;
+  }
+
+  .carousel-navigation {
+    justify-content: flex-end;
+    flex-wrap: wrap;
+
+    gap: 12px;
+    margin-top: 45px;
+
+    padding-right: 0;
+  }
+
+  .blob-one {
+    width: 200px;
+    height: 240px;
+  }
+
+  .blob-two {
+    width: 280px;
+    height: 250px;
+
+    left: 30%;
+  }
+
+  .blob-four {
+    width: 300px;
+    height: 230px;
+  }
+
+  .blob-six {
+    width: 200px;
+    height: 150px;
+  }
+}
+
+/* =========================================
+   ACCESSIBILITY
+========================================= */
 
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -85,5 +652,6 @@ body {
   *::after {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

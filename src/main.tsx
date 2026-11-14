@@ -6,7 +6,7 @@ import './index.css'
 import App from './App'
 import { ApiError, getToken, isNetworkError, setToken } from './api/client'
 
-const PUBLIC_PATHS = ['/', '/login', '/register']
+const PUBLIC_PATHS = ['/', '/login', '/register', '/user', '/user/fungsi-alat', '/user/cara-penggunaan']
 
 // 401 dari respons mana pun berarti sesi habis: token dibuang dan pengguna
 // diarahkan ke login (kecuali memang sedang di halaman publik).
