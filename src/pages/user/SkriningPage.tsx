@@ -1,6 +1,8 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { gejalaApi, pakarApi } from '../../api/endpoints'
+import type { EvaluasiPakarResult, JawabanGejalaInput } from '../../api/types'
 
 interface Patient {
   name: string
@@ -218,55 +220,6 @@ function PrimaryButton({
   )
 }
 
-function evaluateScreening(temperature: number, symptoms: Symptoms) {
-  const hasFever = symptoms.fever === 'yes' || temperature >= 38
-
-  const hasClinicalPattern =
-    hasFever &&
-    symptoms.generalizedRash === 'yes' &&
-    (
-      symptoms.cough === 'yes' ||
-      symptoms.coryza === 'yes' ||
-      symptoms.conjunctivitis === 'yes'
-    )
-
-  const dangerSigns =
-    symptoms.breathingDifficulty === 'yes' ||
-    symptoms.seizure === 'yes' ||
-    symptoms.alteredConsciousness === 'yes'
-
-  if (dangerSigns) {
-    return {
-      status: 'Perlu Penanganan Segera',
-      category: 'danger',
-      description:
-        'Terdapat gejala tanda bahaya yang membutuhkan penilaian medis segera.',
-      recommendation:
-        'Segera bawa pasien ke fasilitas pelayanan kesehatan atau IGD. Jangan menunda pemeriksaan.',
-    }
-  }
-
-  if (hasClinicalPattern) {
-    return {
-      status: 'Pola Gejala Mengarah ke Suspek Campak',
-      category: 'warning',
-      description:
-        'Gejala yang dilaporkan sesuai dengan pola klinis suspek campak berdasarkan definisi surveilans.',
-      recommendation:
-        'Segera konsultasikan pasien ke tenaga kesehatan untuk pemeriksaan dan evaluasi lebih lanjut. Hindari kontak dekat dengan orang lain sementara waktu.',
-    }
-  }
-
-  return {
-    status: 'Pola Gejala Belum Memenuhi Kriteria Suspek',
-    category: 'normal',
-    description:
-      'Data yang dimasukkan belum menunjukkan kombinasi gejala utama sesuai pola klinis suspek campak.',
-    recommendation:
-      'Tetap pantau kondisi pasien. Jika demam, ruam, atau gejala lain muncul atau memburuk, segera konsultasikan ke tenaga kesehatan.',
-  }
-}
-
 export default function SkriningPage() {
   const location = useLocation()
   const navigate = useNavigate()
@@ -287,6 +240,10 @@ export default function SkriningPage() {
   const [symptoms, setSymptoms] = useState<Symptoms>(initialSymptoms)
 
   const [cameraLoading, setCameraLoading] = useState(false)
+  const [apiLoading, setApiLoading] = useState(false)
+  const [apiError, setApiError] = useState('')
+  const [idGejala, setIdGejala] = useState<string | null>(null)
+  const [pakarResult, setPakarResult] = useState<EvaluasiPakarResult | null>(null)
 
   useEffect(() => {
     if (!patient) {
@@ -379,13 +336,87 @@ export default function SkriningPage() {
     [symptoms],
   )
 
+  // Hasil tampilan hanya dipetakan dari respons backend.
+  // Frontend tidak menjalankan ulang aturan Forward Chaining / Decision Tree.
   const screeningResult = useMemo(() => {
-    if (!temperature || Object.values(symptoms).some((value) => value === '')) {
-      return null
+    if (!pakarResult) return null
+
+    if (pakarResult.safety_alert) {
+      return {
+        status: 'Perlu Penanganan Segera',
+        category: 'danger' as const,
+        description:
+          'Sistem mendeteksi tanda bahaya. Pasien memerlukan penilaian medis segera.',
+        recommendation:
+          'Segera bawa pasien ke fasilitas pelayanan kesehatan atau IGD. Jangan menunda pemeriksaan.',
+      }
     }
 
-    return evaluateScreening(Number(temperature), symptoms)
-  }, [temperature, symptoms])
+    switch (pakarResult.forward_chaining.kategori) {
+      case 'CLINICAL_AND_SUSPECTED':
+        return {
+          status: 'Pola Gejala Mengarah ke Suspek Campak',
+          category: 'warning' as const,
+          description:
+            'Forward Chaining menemukan pola klinis dan pola suspected case-finding.',
+          recommendation:
+            'Konsultasikan hasil skrining kepada tenaga kesehatan untuk pemeriksaan lebih lanjut.',
+        }
+
+      case 'CLINICAL_PATTERN_ONLY':
+        return {
+          status: 'Pola Klinis Terdeteksi',
+          category: 'warning' as const,
+          description:
+            'Sistem menemukan pola gejala klinis, tetapi pola suspected case-finding belum terpenuhi.',
+          recommendation:
+            'Pantau kondisi pasien dan konsultasikan hasil kepada tenaga kesehatan.',
+        }
+
+      default:
+        return {
+          status: 'Pola Utama Belum Terpenuhi',
+          category: 'normal' as const,
+          description:
+            'Kombinasi gejala belum memenuhi pola utama berdasarkan aturan Sistem Pakar.',
+          recommendation:
+            'Tetap pantau kondisi pasien. Jika gejala muncul atau memburuk, konsultasikan kepada tenaga kesehatan.',
+        }
+    }
+  }, [pakarResult])
+
+  const startSymptoms = async () => {
+    if (!temperature) return
+
+    // Jika pemeriksaan sudah dibuat, jangan membuat record duplikat.
+    if (idGejala) {
+      setApiError('')
+      setStep('symptoms')
+      return
+    }
+
+    setApiLoading(true)
+    setApiError('')
+
+    try {
+      const response = await gejalaApi.create({
+        Suhu: Number(temperature),
+        Batuk: null,
+      })
+
+      setIdGejala(response.id_gejala)
+      setStep('symptoms')
+    } catch (error) {
+      console.error('Gagal membuat pemeriksaan:', error)
+      setApiError(
+        error instanceof Error
+          ? error.message
+          : 'Gagal membuat data pemeriksaan.',
+      )
+    } finally {
+      setApiLoading(false)
+    }
+  }
 
   const updateAnswer = (key: keyof Symptoms, value: Answer) => {
     setSymptoms((previous) => ({
@@ -404,10 +435,49 @@ export default function SkriningPage() {
     }
   }
 
-  const finishScreening = () => {
-    if (!photo || !temperature || !screeningResult) return
+  const finishScreening = async () => {
+    if (!photo || !temperature || !idGejala) return
+    if (answeredCount !== questions.length || apiLoading) return
+
+    setApiLoading(true)
+    setApiError('')
     stopCamera()
-    setStep('result')
+
+    try {
+      const jawaban: JawabanGejalaInput[] = [
+        { kode_gejala: 'DEMAM', nilai: symptoms.fever === 'yes' ? 1 : 0 },
+        { kode_gejala: 'BATUK', nilai: symptoms.cough === 'yes' ? 1 : 0 },
+        { kode_gejala: 'PILEK', nilai: symptoms.coryza === 'yes' ? 1 : 0 },
+        { kode_gejala: 'MATA_MERAH', nilai: symptoms.conjunctivitis === 'yes' ? 1 : 0 },
+        { kode_gejala: 'RUAM', nilai: symptoms.rash === 'yes' ? 1 : 0 },
+        { kode_gejala: 'RUAM_MENYELURUH', nilai: symptoms.generalizedRash === 'yes' ? 1 : 0 },
+        { kode_gejala: 'KOPLIK', nilai: symptoms.koplikSpots === 'yes' ? 1 : 0 },
+        { kode_gejala: 'DIARE', nilai: symptoms.diarrhea === 'yes' ? 1 : 0 },
+        { kode_gejala: 'SESAK', nilai: symptoms.breathingDifficulty === 'yes' ? 1 : 0 },
+        { kode_gejala: 'KEJANG', nilai: symptoms.seizure === 'yes' ? 1 : 0 },
+        {
+          kode_gejala: 'PENURUNAN_KESADARAN',
+          nilai: symptoms.alteredConsciousness === 'yes' ? 1 : 0,
+        },
+      ]
+
+      const response = await pakarApi.evaluasi({
+        id_gejala: idGejala,
+        jawaban,
+      })
+
+      setPakarResult(response.data)
+      setStep('result')
+    } catch (error) {
+      console.error('Evaluasi Sistem Pakar gagal:', error)
+      setApiError(
+        error instanceof Error
+          ? error.message
+          : 'Gagal melakukan evaluasi Sistem Pakar.',
+      )
+    } finally {
+      setApiLoading(false)
+    }
   }
 
   if (!patient) return null
@@ -680,17 +750,25 @@ export default function SkriningPage() {
                 >
                   Kembali
                 </button>
-                <PrimaryButton
-                  onClick={() => setStep('symptoms')}
-                  disabled={
-                    !temperature ||
-                    Number(temperature) < 30 ||
-                    Number(temperature) > 45
-                  }
-                >
-                  Lanjut ke Pertanyaan Gejala
-                  <Icon name="arrow" size={17} />
-                </PrimaryButton>
+                <div className="flex flex-col items-end gap-2">
+                  <PrimaryButton
+                    onClick={startSymptoms}
+                    disabled={
+                      !temperature ||
+                      Number(temperature) < 30 ||
+                      Number(temperature) > 45 ||
+                      apiLoading
+                    }
+                  >
+                    {apiLoading ? 'Menyimpan pemeriksaan...' : 'Lanjut ke Pertanyaan Gejala'}
+                    {!apiLoading && <Icon name="arrow" size={17} />}
+                  </PrimaryButton>
+                  {apiError && (
+                    <p role="alert" className="max-w-xs text-right text-xs text-[#b42318]">
+                      {apiError}
+                    </p>
+                  )}
+                </div>
               </div>
             </section>
           )}
@@ -774,6 +852,11 @@ export default function SkriningPage() {
               </div>
 
               <div className="shrink-0 border-t border-[#edf1f6] px-3 py-2 sm:px-5">
+                {apiError && (
+                  <p role="alert" className="mb-2 rounded-lg bg-[#fef3f2] px-3 py-2 text-xs text-[#b42318]">
+                    {apiError}
+                  </p>
+                )}
                 <p className="mb-2 text-[10px] leading-snug text-[#526b8d]">
                   Tanda bahaya seperti sesak napas, kejang, atau penurunan kesadaran memerlukan pertolongan medis segera.
                 </p>
@@ -790,11 +873,13 @@ export default function SkriningPage() {
                     disabled={
                       answeredCount !== questions.length ||
                       !temperature ||
-                      !photo
+                      !photo ||
+                      !idGejala ||
+                      apiLoading
                     }
                   >
-                    Selesaikan Skrining
-                    <Icon name="arrow" size={17} />
+                    {apiLoading ? 'Mengevaluasi...' : 'Selesaikan Skrining'}
+                    {!apiLoading && <Icon name="arrow" size={17} />}
                   </PrimaryButton>
                 </div>
               </div>
@@ -802,7 +887,7 @@ export default function SkriningPage() {
           )}
 
           {/* STEP 4: RESULT */}
-          {step === 'result' && screeningResult && (
+          {step === 'result' && screeningResult && pakarResult && (
             <section className="mx-auto max-h-full w-full max-w-none overflow-y-auto rounded-3xl border border-white bg-white/95 p-5 shadow-lg sm:p-7">
               <div className="text-center">
                 <span className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-[#eaf1fd] text-[#175CD3]">
@@ -895,6 +980,41 @@ export default function SkriningPage() {
                 </div>
               </div>
 
+              <div className="mt-4 rounded-2xl border border-[#e1e9f4] p-4">
+                <h3 className="text-sm font-bold">Hasil Evaluasi Sistem Pakar</h3>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-xl bg-[#f7faff] p-3">
+                    <p className="text-[10px] text-[#8291a5]">Forward Chaining</p>
+                    <p className="mt-1 text-xs font-bold">{pakarResult.forward_chaining.kategori}</p>
+                    <p className="mt-2 text-[10px] text-[#8291a5]">Aturan aktif</p>
+                    <p className="mt-1 text-xs font-semibold">
+                      {pakarResult.forward_chaining.aturan_aktif.length > 0
+                        ? pakarResult.forward_chaining.aturan_aktif.join(', ')
+                        : 'Tidak ada aturan aktif'}
+                    </p>
+                    <p className="mt-2 text-[10px] text-[#8291a5]">
+                      Clinical pattern: {pakarResult.forward_chaining.clinical_pattern ? 'Terpenuhi' : 'Tidak terpenuhi'}
+                    </p>
+                    <p className="text-[10px] text-[#8291a5]">
+                      Suspected pattern: {pakarResult.forward_chaining.suspected_pattern ? 'Terpenuhi' : 'Tidak terpenuhi'}
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-[#f7faff] p-3">
+                    <p className="text-[10px] text-[#8291a5]">Decision Tree - Hasil utama</p>
+                    <p className="mt-1 text-xs font-bold">{pakarResult.decision_tree.main_leaf}</p>
+                    <p className="mt-3 text-[10px] text-[#8291a5]">Decision Tree - Tanda bahaya</p>
+                    <p className="mt-1 text-xs font-bold">{pakarResult.decision_tree.safety_leaf}</p>
+                    <p className="mt-3 text-[10px] text-[#8291a5]">Safety Alert</p>
+                    <p className={`mt-1 text-xs font-bold ${pakarResult.safety_alert ? 'text-[#b42318]' : 'text-[#067647]'}`}>
+                      {pakarResult.safety_alert ? 'Terdapat tanda bahaya' : 'Tidak ditemukan tanda bahaya'}
+                    </p>
+                  </div>
+                </div>
+                <p className="mt-3 text-[10px] text-[#8291a5]">
+                  ID pemeriksaan: {pakarResult.id_gejala}
+                </p>
+              </div>
+
               <div className="mt-4 rounded-2xl border border-[#dbe7f5] bg-[#f2f7ff] p-4">
                 <h3 className="flex items-center gap-2 text-sm font-bold text-[#175CD3]">
                   <Icon name="info" size={17} />
@@ -906,7 +1026,7 @@ export default function SkriningPage() {
               </div>
 
               <div className="mt-4 rounded-xl bg-[#f8fafc] p-3 text-[10px] leading-relaxed text-[#647990]">
-                <strong>Catatan:</strong> Hasil ini merupakan skrining awal, bukan diagnosis medis. Pola gejala digunakan sebagai indikator untuk membantu menentukan tindak lanjut. Foto belum dianalisis oleh model Computer Vision. Penentuan diagnosis memerlukan pemeriksaan tenaga kesehatan.
+                <strong>Catatan:</strong> {pakarResult.catatan || 'Hasil ini merupakan skrining awal, bukan diagnosis medis.'} Foto belum dianalisis oleh model Computer Vision. Penentuan diagnosis memerlukan pemeriksaan tenaga kesehatan.
               </div>
 
               <div className="mt-5 flex flex-col-reverse justify-between gap-3 sm:flex-row">
