@@ -24,6 +24,21 @@ export function formatTanggal(iso: string | null | undefined, opts: FormatDateOp
   return fmt.format(d)
 }
 
+// Angka pada area admin mengikuti format Indonesia (pemisah ribuan titik,
+// desimal koma) seperti pada gambar referensi.
+export function formatAngka(nilai: number | null | undefined): string {
+  if (nilai === null || nilai === undefined || Number.isNaN(nilai)) return '-'
+  return new Intl.NumberFormat('id-ID').format(nilai)
+}
+
+export function formatPersen(nilai: number | null | undefined, desimal = 1): string {
+  if (nilai === null || nilai === undefined || Number.isNaN(nilai)) return '-'
+  return `${new Intl.NumberFormat('id-ID', {
+    minimumFractionDigits: desimal,
+    maximumFractionDigits: desimal,
+  }).format(nilai)}%`
+}
+
 export function formatSuhu(suhu: number | null | undefined): string {
   if (suhu === null || suhu === undefined) return ''
   return `${suhu.toFixed(1).replace('.', ',')} °C`

@@ -1,0 +1,163 @@
+export type AdminUserRole = 'Admin' | 'Petugas Kesehatan'
+export type AdminUserStatus = 'Aktif' | 'Nonaktif'
+
+export interface UserAccount {
+  id: string
+  name: string
+  username: string
+  nik: string
+  email: string
+  phone: string
+  role: AdminUserRole
+  status: AdminUserStatus
+  createdAt: string
+  lastLogin: string
+}
+
+export const INITIAL_USERS: UserAccount[] = [
+  {
+    id: '1',
+    name: 'Admin MeaslesCare',
+    username: 'admin',
+    nik: '3201010101900001',
+    email: 'admin@measlescare.id',
+    phone: '0811-2233-4455',
+    role: 'Admin',
+    status: 'Aktif',
+    createdAt: '01 Jan 2026, 08:00',
+    lastLogin: '12 Nov 2026, 14:30',
+  },
+  {
+    id: '2',
+    name: 'Dr. Riska Maharani',
+    username: 'dr.riska',
+    nik: '3201024508920003',
+    email: 'riska@puskesmas.id',
+    phone: '0812-3456-7890',
+    role: 'Petugas Kesehatan',
+    status: 'Aktif',
+    createdAt: '10 Okt 2026, 09:15',
+    lastLogin: '12 Nov 2026, 13:58',
+  },
+  {
+    id: '3',
+    name: 'Sinta Nurhaliza',
+    username: 'sinta',
+    nik: '3201035512940002',
+    email: 'sinta.n@puskesmas.id',
+    phone: '0813-9876-5432',
+    role: 'Petugas Kesehatan',
+    status: 'Aktif',
+    createdAt: '12 Okt 2026, 10:20',
+    lastLogin: '12 Nov 2026, 13:20',
+  },
+  {
+    id: '4',
+    name: 'Budi Santoso',
+    username: 'budi',
+    nik: '3201041103880005',
+    email: 'budi.santoso@measlescare.id',
+    phone: '0821-1122-3344',
+    role: 'Admin',
+    status: 'Aktif',
+    createdAt: '15 Okt 2026, 11:00',
+    lastLogin: '12 Nov 2026, 11:47',
+  },
+  {
+    id: '5',
+    name: 'Aulia Rahman',
+    username: 'aulia',
+    nik: '3201052206950001',
+    email: 'aulia.rahman@puskesmas.id',
+    phone: '0856-7788-9900',
+    role: 'Petugas Kesehatan',
+    status: 'Aktif',
+    createdAt: '18 Okt 2026, 14:10',
+    lastLogin: '12 Nov 2026, 10:15',
+  },
+  {
+    id: '6',
+    name: 'Dewi Lestari',
+    username: 'dewi',
+    nik: '3201066709960004',
+    email: 'dewi.lestari@puskesmas.id',
+    phone: '0877-2233-4455',
+    role: 'Petugas Kesehatan',
+    status: 'Aktif',
+    createdAt: '20 Okt 2026, 08:30',
+    lastLogin: '11 Nov 2026, 16:40',
+  },
+  {
+    id: '7',
+    name: 'Rizal Fadilah',
+    username: 'rizal',
+    nik: '3201071904930002',
+    email: 'rizal.f@puskesmas.id',
+    phone: '0819-3344-5566',
+    role: 'Petugas Kesehatan',
+    status: 'Aktif',
+    createdAt: '22 Okt 2026, 13:45',
+    lastLogin: '11 Nov 2026, 15:12',
+  },
+  {
+    id: '8',
+    name: 'Maya Safitri',
+    username: 'maya',
+    nik: '3201085002970003',
+    email: 'maya.safitri@puskesmas.id',
+    phone: '0822-4455-6677',
+    role: 'Petugas Kesehatan',
+    status: 'Aktif',
+    createdAt: '25 Okt 2026, 09:00',
+    lastLogin: '11 Nov 2026, 09:08',
+  },
+  {
+    id: '9',
+    name: 'Dr. Hendra Wijaya',
+    username: 'hendra',
+    nik: '3201091507850006',
+    email: 'hendra.w@measlescare.id',
+    phone: '0812-6677-8899',
+    role: 'Admin',
+    status: 'Aktif',
+    createdAt: '28 Okt 2026, 15:30',
+    lastLogin: '10 Nov 2026, 17:20',
+  },
+  {
+    id: '10',
+    name: 'Siti Aminah',
+    username: 'siti.a',
+    nik: '3201104803980001',
+    email: 'siti.aminah@puskesmas.id',
+    phone: '0852-1133-5577',
+    role: 'Petugas Kesehatan',
+    status: 'Aktif',
+    createdAt: '01 Nov 2026, 10:00',
+    lastLogin: '10 Nov 2026, 11:15',
+  },
+  {
+    id: '11',
+    name: 'Farhan Pratama',
+    username: 'farhan',
+    nik: '3201112411990005',
+    email: 'farhan.p@puskesmas.id',
+    phone: '0896-5566-7788',
+    role: 'Petugas Kesehatan',
+    status: 'Aktif',
+    createdAt: '03 Nov 2026, 16:00',
+    lastLogin: '09 Nov 2026, 14:40',
+  },
+  {
+    id: '12',
+    name: 'Dr. Dian Kusuma',
+    username: 'dr.dian',
+    nik: '3201126101910002',
+    email: 'dian.kusuma@puskesmas.id',
+    phone: '0813-4455-6677',
+    role: 'Petugas Kesehatan',
+    status: 'Aktif',
+    createdAt: '05 Nov 2026, 11:20',
+    lastLogin: '08 Nov 2026, 08:30',
+  },
+]
+
