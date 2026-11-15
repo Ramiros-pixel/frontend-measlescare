@@ -14,7 +14,7 @@ import ProfilePage from '@/pages/ProfilePage'
 import AdminDashboardPage from '@/pages/admin/AdminDashboardPage'
 import AdminUsersPage from '@/pages/admin/AdminUsersPage'
 import AdminUserDetailPage from '@/pages/admin/AdminUserDetailPage'
-import AdminRecordsPage from '@/pages/admin/AdminRecordsPage'
+import AdminScreeningPage from '@/pages/admin/AdminScreeningPage'
 
 import NotFoundPage from '@/pages/NotFoundPage'
 
@@ -72,9 +72,10 @@ export default function App() {
         <Route element={<RequireAuth requireAdmin />}>
           <Route element={<AdminLayout />}>
             <Route path="/admin" element={<AdminDashboardPage />} />
+            <Route path="/admin/skrining" element={<AdminScreeningPage />} />
             <Route path="/admin/pengguna" element={<AdminUsersPage />} />
             <Route path="/admin/pengguna/:nik" element={<AdminUserDetailPage />} />
-            <Route path="/admin/pemeriksaan" element={<AdminRecordsPage />} />
+            <Route path="/admin/pemeriksaan" element={<AdminScreeningPage />} />
             <Route path="/admin/pemeriksaan/:id" element={<ResultPage />} />
           </Route>
         </Route>
