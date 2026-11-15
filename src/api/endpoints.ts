@@ -6,6 +6,10 @@ import type {
   GejalaRecord,
   HistoryItem,
   User,
+  MasterGejala,
+  EvaluasiPakarRequest,
+  EvaluasiPakarResponse,
+  HasilPakarResponse,
 } from './types'
 
 export interface LoginInput {
@@ -63,4 +67,28 @@ export const cameraApi = {
     const qs = q.toString()
     return request<CameraRecord[]>(`/camera${qs ? `?${qs}` : ''}`, { signal })
   },
+}
+
+
+export const pakarApi = {
+  masterGejala: (signal?: AbortSignal) =>
+    request<{ total: number; data: MasterGejala[] }>(
+      '/pakar/master-gejala',
+      { signal }
+    ),
+
+  evaluasi: (input: EvaluasiPakarRequest) =>
+    request<EvaluasiPakarResponse>(
+      '/pakar/evaluasi',
+      {
+        method: 'POST',
+        body: input,
+      }
+    ),
+
+  hasil: (idGejala: string, signal?: AbortSignal) =>
+    request<HasilPakarResponse>(
+      `/pakar/hasil/${encodeURIComponent(idGejala)}`,
+      { signal }
+    ),
 }
