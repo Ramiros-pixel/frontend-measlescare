@@ -15,6 +15,8 @@ import AdminDashboardPage from '@/pages/admin/AdminDashboardPage'
 import AdminUsersPage from '@/pages/admin/AdminUsersPage'
 import AdminUserDetailPage from '@/pages/admin/AdminUserDetailPage'
 import AdminScreeningPage from '@/pages/admin/AdminScreeningPage'
+import AdminReportsPage from '@/pages/admin/AdminReportsPage'
+import AdminPatientsPage from '@/pages/admin/AdminPatientsPage'
 
 import NotFoundPage from '@/pages/NotFoundPage'
 
@@ -72,7 +74,9 @@ export default function App() {
         <Route element={<RequireAuth requireAdmin />}>
           <Route element={<AdminLayout />}>
             <Route path="/admin" element={<AdminDashboardPage />} />
+            <Route path="/admin/pasien" element={<AdminPatientsPage />} />
             <Route path="/admin/skrining" element={<AdminScreeningPage />} />
+            <Route path="/admin/laporan" element={<AdminReportsPage />} />
             <Route path="/admin/pengguna" element={<AdminUsersPage />} />
             <Route path="/admin/pengguna/:nik" element={<AdminUserDetailPage />} />
             <Route path="/admin/pemeriksaan" element={<AdminScreeningPage />} />
