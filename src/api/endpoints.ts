@@ -1,4 +1,4 @@
-import { request } from './client'
+import { request, requestMultipart } from './client'
 import type {
   CameraCreate,
   CameraRecord,
@@ -10,6 +10,7 @@ import type {
   EvaluasiPakarRequest,
   EvaluasiPakarResponse,
   HasilPakarResponse,
+  MeaslesPredictResponse,
 } from './types'
 
 export interface LoginInput {
@@ -91,4 +92,16 @@ export const pakarApi = {
       `/pakar/hasil/${encodeURIComponent(idGejala)}`,
       { signal }
     ),
+}
+
+export const measlesApi = {
+  predict: (file: Blob | File, signal?: AbortSignal) => {
+    const formData = new FormData()
+    if (file instanceof File) {
+      formData.append('file', file)
+    } else {
+      formData.append('file', file, 'lesion.jpg')
+    }
+    return requestMultipart<MeaslesPredictResponse>('/v1/measles/predict', formData, signal)
+  },
 }
