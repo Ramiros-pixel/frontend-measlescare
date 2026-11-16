@@ -17,7 +17,7 @@ interface NavGroup {
   items: NavItem[]
 }
 
-/* Susunan menu mengikuti gambar referensi admin (7 tujuan dalam 2 grup). */
+/* Navigasi admin disederhanakan menjadi satu grup menu utama. */
 const NAV_GROUPS: NavGroup[] = [
   {
     title: 'Menu Utama',
@@ -26,14 +26,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/admin/pasien', label: 'Manajemen Pasien', icon: 'pasien' },
       { to: '/admin/skrining', label: 'Data Skrining', icon: 'skrining' },
       { to: '/admin/laporan', label: 'Laporan & Statistik', icon: 'laporan' },
-    ],
-  },
-  {
-    title: 'Manajemen Sistem',
-    items: [
-      { to: '/admin/kiosk', label: 'Perangkat Kiosk', icon: 'kiosk' },
       { to: '/admin/pengguna', label: 'Manajemen Pengguna', icon: 'pengguna' },
-      { to: '/admin/pengaturan', label: 'Pengaturan', icon: 'pengaturan' },
     ],
   },
 ]

@@ -71,7 +71,7 @@ export default function AdminUserDetailPage() {
             </div>
             <div>
               <dt className="text-xs font-semibold text-muted">Tanggal lahir</dt>
-              <dd className="tabular text-sm text-text">{user.data.Tgl_lahir}</dd>
+              <dd className="tabular text-sm text-text">{user.data.Tempat_Tgl_Lahir || '-'}</dd>
             </div>
             <div>
               <dt className="text-xs font-semibold text-muted">Peran</dt>

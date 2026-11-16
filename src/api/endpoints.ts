@@ -10,6 +10,9 @@ import type {
   EvaluasiPakarRequest,
   EvaluasiPakarResponse,
   HasilPakarResponse,
+  FaceRecognizeRequest,
+  FaceRecognizeResponse,
+  KioskPatient, KioskFaceResponse, KioskCaptureResponse,
 } from './types'
 
 export interface LoginInput {
@@ -20,7 +23,9 @@ export interface LoginInput {
 export interface RegisterInput {
   NIK: string
   Name: string
-  Tgl_lahir: string
+  Tempat_Tgl_Lahir?: string | null
+  Golongan_darah?: string | null
+  Email?: string | null
   Alamat?: string | null
   id_Role: string
   password: string
@@ -77,18 +82,75 @@ export const pakarApi = {
       { signal }
     ),
 
-  evaluasi: (input: EvaluasiPakarRequest) =>
-    request<EvaluasiPakarResponse>(
-      '/pakar/evaluasi',
-      {
-        method: 'POST',
-        body: input,
-      }
-    ),
+  evaluasi: (input: EvaluasiPakarRequest, kioskSessionToken?: string) =>
+    request<EvaluasiPakarResponse>('/pakar/evaluasi', {
+      method: 'POST',
+      body: input,
+      headers: kioskSessionToken
+        ? { 'X-Kiosk-Session': kioskSessionToken }
+        : undefined,
+    }),
 
   hasil: (idGejala: string, signal?: AbortSignal) =>
     request<HasilPakarResponse>(
       `/pakar/hasil/${encodeURIComponent(idGejala)}`,
       { signal }
+    ),
+}
+
+// Face recognition publik: backend menerima satu frame JPEG/PNG dalam base64.
+export const faceApi = {
+  recognize: (input: FaceRecognizeRequest, signal?: AbortSignal) =>
+    request<FaceRecognizeResponse>('/face/recognize', {
+      method: 'POST',
+      body: input,
+      signal,
+    }),
+}
+
+const kioskHeaders = {
+  'X-Kiosk-Key': (import.meta.env.VITE_KIOSK_API_KEY as string | undefined) ?? '',
+}
+
+export const kioskSessionApi = {
+  create: (NIK: string, image: string) =>
+    request<{
+      access_token: string
+      token_type: string
+      expires_in: number
+      patient: { NIK: string; Name: string }
+    }>('/kiosk-session/create', {
+      method: 'POST',
+      body: { NIK, image },
+      headers: kioskHeaders,
+    }),
+  createGejala: (input: GejalaCreate, sessionToken: string) =>
+    request<GejalaRecord>('/kiosk-session/gejala', {
+      method: 'POST',
+      body: input,
+      headers: { 'X-Kiosk-Session': sessionToken },
+    }),
+}
+
+export const kioskApi = {
+  identifyRFID: (rfid_uid: string) =>
+    request<KioskPatient>('/kiosk/identify-rfid', {
+      method: 'POST', body: { rfid_uid }, headers: kioskHeaders,
+    }),
+  saveEmail: (NIK: string, Email: string) =>
+    request<{ success: boolean; Email: string }>('/kiosk/email', {
+      method: 'POST', body: { NIK, Email }, headers: kioskHeaders,
+    }),
+  recognize: (NIK: string, image: string) =>
+    request<KioskFaceResponse>('/kiosk/face/recognize', {
+      method: 'POST', body: { NIK, image }, headers: kioskHeaders,
+    }),
+  capture: (NIK: string, image: string) =>
+    request<KioskCaptureResponse>('/kiosk/face/capture', {
+      method: 'POST', body: { NIK, image }, headers: kioskHeaders, timeoutMs: 30000,
+    }),
+  train: (NIK: string) =>
+    request<{ nik: string; my_samples: number; total_samples: number; total_users: number; message: string }>(
+      '/kiosk/face/train', { method: 'POST', body: { NIK }, headers: kioskHeaders, timeoutMs: 120000 }
     ),
 }

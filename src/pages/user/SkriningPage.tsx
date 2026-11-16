@@ -1,7 +1,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { gejalaApi, pakarApi } from '../../api/endpoints'
+import { kioskSessionApi, pakarApi } from '../../api/endpoints'
 import type { EvaluasiPakarResult, JawabanGejalaInput } from '../../api/types'
 
 interface Patient {
@@ -224,9 +224,12 @@ export default function SkriningPage() {
   const location = useLocation()
   const navigate = useNavigate()
 
-  const patient = (
-    location.state as { patient?: Patient } | null
-  )?.patient
+  const routeState = location.state as {
+    patient?: Patient
+    kioskSessionToken?: string
+  } | null
+  const patient = routeState?.patient
+  const kioskSessionToken = routeState?.kioskSessionToken
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -246,7 +249,7 @@ export default function SkriningPage() {
   const [pakarResult, setPakarResult] = useState<EvaluasiPakarResult | null>(null)
 
   useEffect(() => {
-    if (!patient) {
+    if (!patient || !kioskSessionToken) {
       navigate('/user/skrining/identifikasi', { replace: true })
     }
   }, [patient, navigate])
@@ -399,10 +402,13 @@ export default function SkriningPage() {
     setApiError('')
 
     try {
-      const response = await gejalaApi.create({
-        Suhu: Number(temperature),
-        Batuk: null,
-      })
+      if (!kioskSessionToken) {
+        throw new Error('Sesi kiosk tidak ditemukan. Silakan ulangi identifikasi pasien.')
+      }
+      const response = await kioskSessionApi.createGejala(
+        { Suhu: Number(temperature), Batuk: null },
+        kioskSessionToken,
+      )
 
       setIdGejala(response.id_gejala)
       setStep('symptoms')
@@ -461,10 +467,13 @@ export default function SkriningPage() {
         },
       ]
 
+      if (!kioskSessionToken) {
+        throw new Error('Sesi kiosk tidak ditemukan. Silakan ulangi identifikasi pasien.')
+      }
       const response = await pakarApi.evaluasi({
         id_gejala: idGejala,
         jawaban,
-      })
+      }, kioskSessionToken)
 
       setPakarResult(response.data)
       setStep('result')

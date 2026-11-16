@@ -1,10 +1,12 @@
 export interface User {
   NIK: string
   Name: string
-  Tgl_lahir: string
+  Tempat_Tgl_Lahir: string | null
   Alamat: string | null
+  Golongan_darah: string | null
+  Email: string | null
   id_Role: string
-  role_name: string | null
+  role_name?: string
 }
 
 export interface CameraRecord {
@@ -117,4 +119,42 @@ export interface HasilPakarResponse {
     }
     tanggal_evaluasi: string
   }
+}
+
+
+export interface FaceRecognizeRequest {
+  image: string
+}
+
+export interface FaceRecognizeResponse {
+  recognized: boolean
+  user_id: string | null
+  name: string | null
+  confidence: number | null
+}
+
+export interface KioskPatient {
+  NIK: string
+  Name: string
+  Tempat_Tgl_Lahir: string | null
+  Golongan_darah: string | null
+  Email: string | null
+  Alamat: string | null
+  face_samples: number
+  face_target: number
+}
+export interface KioskFaceResponse {
+  recognized: boolean
+  match: boolean
+  user_id: string | null
+  name: string | null
+  confidence: number | null
+}
+export interface KioskCaptureResponse {
+  nik: string
+  stored: number
+  target: number
+  face_detected: boolean
+  completed: boolean
+  message: string
 }
