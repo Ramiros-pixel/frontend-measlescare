@@ -5,6 +5,11 @@ import path from 'node:path'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  css: {
+    postcss: {
+      plugins: [],
+    },
+  },
   resolve: {
     alias: { '@': path.resolve(import.meta.dirname, 'src') },
   },
