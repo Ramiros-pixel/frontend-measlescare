@@ -1,3 +1,9 @@
+feature/measleswatch-frontend
+// Kosong = mode dev lewat proxy Vite /be-api -> http://localhost:8000 (di-rewrite ke /api/*).
+// Produksi: set VITE_API_BASE_URL ke domain backend. Prefix /api ditambahkan otomatis
+// bila belum ada, jadi contoh berikut sama saja hasilnya:
+//   https://ramirosservers.tail2d4b04.ts.net  atau  https://ramirosservers.tail2d4b04.ts.net/api
+const RAW_BASE = (import.meta.env?.VITE_API_BASE_URL as string | undefined)?.trim() ?? ''
 
 // Kosong = mode dev lewat proxy Vite /be-api -> http://localhost:8000
 // Produksi: set VITE_API_BASE_URL ke domain backend.
@@ -151,10 +157,62 @@ export async function request<T>(
   return data as T
 }
 
+feature/measleswatch-frontend
+// Request khusus multipart/form-data (misal upload citra inferensi MeaslesWatch AI).
+// Bersifat publik (tanpa header Authorization), timeout 15 detik, dan membiarkan browser
+// menentukan Content-Type beserta boundary multipart secara otomatis.
+export async function requestMultipart<T>(
+  path: string,
+  formData: FormData,
+  signal?: AbortSignal
+): Promise<T> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 15000)
+  if (signal) {
+    signal.addEventListener('abort', () => controller.abort(), { once: true })
+  }
+
+  let res: Response
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      method: 'POST',
+      body: formData,
+      signal: controller.signal,
+    })
+  } catch (err) {
+    clearTimeout(timer)
+    if (signal?.aborted || controller.signal.aborted) {
+      throw new DOMException('Request dibatalkan', 'AbortError')
+    }
+    throw err
+  }
+  clearTimeout(timer)
+
+  if (res.status === 204) return undefined as T
+
+  let data: unknown = null
+  const text = await res.text()
+  if (text) {
+    try {
+      data = JSON.parse(text)
+    } catch {
+      data = text
+    }
+  }
+
+  if (!res.ok) {
+    throw describeError(res.status, data)
+  }
+  return data as T
+}
+
+export function describeError(status: number, data: unknown): ApiError {
+
 export function describeError(
   status: number,
   data: unknown,
 ): ApiError {
+
   const obj = (data ?? {}) as Record<string, unknown>
 
   let message: string

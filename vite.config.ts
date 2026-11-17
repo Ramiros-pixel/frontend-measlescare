@@ -6,6 +6,13 @@ import path from 'node:path'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+feature/measleswatch-frontend
+  css: {
+    postcss: {
+      plugins: [],
+    },
+  },
+
 
   resolve: {
     alias: {

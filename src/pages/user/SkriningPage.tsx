@@ -1,8 +1,24 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+feature/measleswatch-frontend
+import { gejalaApi, pakarApi, measlesApi } from '../../api/endpoints'
+import type {
+  EvaluasiPakarResult,
+  JawabanGejalaInput,
+  MeaslesPredictResponse,
+} from '../../api/types'
+import { isNetworkError, ApiError } from '../../api/client'
+import {
+  dataUrlToBlob,
+  SUPPORTED_IMAGE_MIME_TYPES,
+  MAX_IMAGE_SIZE_BYTES,
+} from '../../lib/image'
+import { MeaslesResultCard } from '../../components/measles/MeaslesResultCard'
+
 import { kioskSessionApi, pakarApi } from '../../api/endpoints'
 import type { EvaluasiPakarResult, JawabanGejalaInput } from '../../api/types'
+
 
 interface Patient {
   name: string
@@ -113,7 +129,18 @@ function Icon({
   name,
   size = 20,
 }: {
-  name: 'camera' | 'back' | 'check' | 'thermometer' | 'alert' | 'arrow' | 'refresh' | 'info' | 'user' | 'shield'
+  name:
+    | 'camera'
+    | 'back'
+    | 'check'
+    | 'thermometer'
+    | 'alert'
+    | 'arrow'
+    | 'refresh'
+    | 'info'
+    | 'user'
+    | 'shield'
+    | 'upload'
   size?: number
 }) {
   const common = {
@@ -196,6 +223,13 @@ function Icon({
           <path d="m9 12 2 2 4-4" />
         </svg>
       )
+    case 'upload':
+      return (
+        <svg {...common}>
+          <path d="M12 16V5m0 0 4 4m-4-4-4 4" />
+          <path d="M5 19h14" />
+        </svg>
+      )
   }
 }
 
@@ -247,6 +281,13 @@ export default function SkriningPage() {
   const [apiError, setApiError] = useState('')
   const [idGejala, setIdGejala] = useState<string | null>(null)
   const [pakarResult, setPakarResult] = useState<EvaluasiPakarResult | null>(null)
+
+  // MeaslesWatch AI State
+  const [photoFile, setPhotoFile] = useState<File | null>(null)
+  const [measlesResult, setMeaslesResult] = useState<MeaslesPredictResponse | null>(null)
+  const [measlesLoading, setMeaslesLoading] = useState(false)
+  const [measlesError, setMeaslesError] = useState<string | null>(null)
+  const activeInferenceRef = useRef<number>(0)
 
   useEffect(() => {
     if (!patient || !kioskSessionToken) {
@@ -308,6 +349,47 @@ export default function SkriningPage() {
     }
   }
 
+  const runMeaslesInference = async (imgSource: string | File | null) => {
+    if (!imgSource) return
+
+    const inferenceId = ++activeInferenceRef.current
+    setMeaslesLoading(true)
+    setMeaslesError(null)
+
+    try {
+      let payload: Blob | File
+      if (typeof imgSource === 'string') {
+        payload = dataUrlToBlob(imgSource)
+      } else {
+        payload = imgSource
+      }
+
+      const response = await measlesApi.predict(payload)
+
+      if (inferenceId === activeInferenceRef.current) {
+        setMeaslesResult(response)
+        setMeaslesError(null)
+      }
+    } catch (err) {
+      if (inferenceId === activeInferenceRef.current) {
+        console.error('MeaslesWatch AI inference failed:', err)
+        let userMsg = 'Gagal melakukan analisis citra ruam.'
+        if (isNetworkError(err)) {
+          userMsg = 'Koneksi ke server inferensi AI terputus. Pastikan koneksi jaringan atau backend aktif.'
+        } else if (err instanceof ApiError) {
+          userMsg = err.message
+        } else if (err instanceof Error) {
+          userMsg = err.message
+        }
+        setMeaslesError(userMsg)
+      }
+    } finally {
+      if (inferenceId === activeInferenceRef.current) {
+        setMeaslesLoading(false)
+      }
+    }
+  }
+
   const capturePhoto = () => {
     const video = videoRef.current
     const canvas = canvasRef.current
@@ -326,11 +408,40 @@ export default function SkriningPage() {
     context.drawImage(video, 0, 0, canvas.width, canvas.height)
 
     setPhoto(canvas.toDataURL('image/jpeg', 0.88))
+    setPhotoFile(null)
+    setMeaslesResult(null)
+    setMeaslesError(null)
     stopCamera()
+  }
+
+  const handlePhotoPicked = (file: File) => {
+    if (!(SUPPORTED_IMAGE_MIME_TYPES as readonly string[]).includes(file.type)) {
+      setCameraError('Format berkas tidak didukung. Harap unggah citra format JPEG, PNG, atau WebP.')
+      return
+    }
+    if (file.size > MAX_IMAGE_SIZE_BYTES) {
+      setCameraError('Ukuran berkas melebihi batas maksimum 5 MB.')
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const dataUrl = e.target?.result as string
+      setPhoto(dataUrl)
+      setPhotoFile(file)
+      setMeaslesResult(null)
+      setMeaslesError(null)
+      setCameraError('')
+      stopCamera()
+    }
+    reader.readAsDataURL(file)
   }
 
   const retakePhoto = () => {
     setPhoto(null)
+    setPhotoFile(null)
+    setMeaslesResult(null)
+    setMeaslesError(null)
     setCameraError('')
   }
 
@@ -448,6 +559,9 @@ export default function SkriningPage() {
     setApiLoading(true)
     setApiError('')
     stopCamera()
+
+    // Jalankan inferensi citra ruam MeaslesWatch AI secara asinkron
+    void runMeaslesInference(photoFile ?? photo)
 
     try {
       const jawaban: JawabanGejalaInput[] = [
@@ -620,15 +734,31 @@ export default function SkriningPage() {
                       Ambil Foto
                     </button>
                   ) : (
-                    <button
-                      type="button"
-                      onClick={startCamera}
-                      disabled={cameraLoading}
-                      className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-xs font-bold text-[#175CD3] hover:bg-[#eaf1fd] disabled:opacity-50"
-                    >
-                      <Icon name="camera" size={16} />
-                      {cameraLoading ? 'Mengaktifkan...' : 'Aktifkan Kamera'}
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-xs font-semibold text-white hover:bg-white/20">
+                        <Icon name="upload" size={15} />
+                        Unggah Foto
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          className="sr-only"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (file) handlePhotoPicked(file)
+                            e.target.value = ''
+                          }}
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={startCamera}
+                        disabled={cameraLoading}
+                        className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-xs font-bold text-[#175CD3] hover:bg-[#eaf1fd] disabled:opacity-50"
+                      >
+                        <Icon name="camera" size={16} />
+                        {cameraLoading ? 'Mengaktifkan...' : 'Aktifkan Kamera'}
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -672,7 +802,7 @@ export default function SkriningPage() {
                 <div className="shrink-0 pt-3">
                   <div className="mb-3 flex items-start gap-2 rounded-xl bg-[#f2f7ff] p-2.5 text-[10px] leading-snug text-[#526b8d]">
                     <Icon name="info" size={16} />
-                    Foto hanya digunakan sebagai input awal. Analisis Computer Vision belum dihubungkan pada tahap ini.
+                    Foto ruam kulit akan dianalisis secara otomatis oleh model AI MeaslesWatch untuk klasifikasi lesi kulit.
                   </div>
                   <PrimaryButton
                     onClick={() => setStep('temperature')}
@@ -989,6 +1119,67 @@ export default function SkriningPage() {
                 </div>
               </div>
 
+              {/* HASIL ANALISIS CITRA RUAM — MEASLESWATCH AI */}
+              <div className="mt-4">
+                <div className="mb-2 flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-[#183b5b]">
+                    Hasil Analisis Citra Ruam (MeaslesWatch AI)
+                  </h3>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#175CD3]">
+                    Deep Learning Vision
+                  </span>
+                </div>
+
+                {measlesLoading && (
+                  <div className="rounded-2xl border border-[#dbe7f5] bg-white p-6 shadow-sm">
+                    <div className="flex items-center gap-3">
+                      <div className="size-5 animate-spin rounded-full border-2 border-[#175CD3] border-t-transparent" />
+                      <div>
+                        <h4 className="text-sm font-bold text-[#183b5b]">
+                          Sedang Menganalisis Citra Ruam Kulit...
+                        </h4>
+                        <p className="mt-0.5 text-xs text-[#647990]">
+                          Model AI MeaslesWatch sedang memproses estimasi klasifikasi ruam secara otomatis.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {!measlesLoading && measlesError && (
+                  <div className="rounded-2xl border border-[#fecdca] bg-[#fef3f2] p-4 shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3">
+                        <span className="mt-0.5 text-[#b42318]">
+                          <Icon name="alert" size={20} />
+                        </span>
+                        <div>
+                          <h4 className="text-sm font-bold text-[#b42318]">
+                            Gagal Memproses Analisis Citra AI
+                          </h4>
+                          <p className="mt-1 text-xs text-[#526174]">
+                            {measlesError}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => runMeaslesInference(photoFile ?? photo)}
+                        disabled={measlesLoading}
+                        className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-[#b42318] px-3 py-1.5 text-xs font-bold text-[#b42318] hover:bg-[#b42318] hover:text-white"
+                      >
+                        <Icon name="refresh" size={14} />
+                        Coba Lagi
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {!measlesLoading && measlesResult && (
+                  <MeaslesResultCard result={measlesResult} />
+                )}
+              </div>
+
               <div className="mt-4 rounded-2xl border border-[#e1e9f4] p-4">
                 <h3 className="text-sm font-bold">Hasil Evaluasi Sistem Pakar</h3>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -1035,7 +1226,7 @@ export default function SkriningPage() {
               </div>
 
               <div className="mt-4 rounded-xl bg-[#f8fafc] p-3 text-[10px] leading-relaxed text-[#647990]">
-                <strong>Catatan:</strong> {pakarResult.catatan || 'Hasil ini merupakan skrining awal, bukan diagnosis medis.'} Foto belum dianalisis oleh model Computer Vision. Penentuan diagnosis memerlukan pemeriksaan tenaga kesehatan.
+                <strong>Catatan:</strong> {pakarResult.catatan || 'Hasil ini merupakan skrining awal, bukan diagnosis medis.'} Hasil analisis citra oleh model AI MeaslesWatch dan hasil evaluasi Sistem Pakar merupakan alat bantu skrining awal, bukan diagnosis medis definitif. Penentuan diagnosis dan penanganan tetap memerlukan pemeriksaan langsung oleh tenaga kesehatan profesional.
               </div>
 
               <div className="mt-5 flex flex-col-reverse justify-between gap-3 sm:flex-row">

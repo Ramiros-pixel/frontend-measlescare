@@ -1,4 +1,4 @@
-import { request } from './client'
+import { request, requestMultipart } from './client'
 import type {
   CameraCreate,
   CameraRecord,
@@ -10,9 +10,13 @@ import type {
   EvaluasiPakarRequest,
   EvaluasiPakarResponse,
   HasilPakarResponse,
+feature/measleswatch-frontend
+  MeaslesPredictResponse,
+
   FaceRecognizeRequest,
   FaceRecognizeResponse,
   KioskPatient, KioskFaceResponse, KioskCaptureResponse,
+
 } from './types'
 
 export interface LoginInput {
@@ -98,6 +102,18 @@ export const pakarApi = {
     ),
 }
 
+feature/measleswatch-frontend
+export const measlesApi = {
+  predict: (file: Blob | File, signal?: AbortSignal) => {
+    const formData = new FormData()
+    if (file instanceof File) {
+      formData.append('file', file)
+    } else {
+      formData.append('file', file, 'lesion.jpg')
+    }
+    return requestMultipart<MeaslesPredictResponse>('/v1/measles/predict', formData, signal)
+  },
+
 // Face recognition publik: backend menerima satu frame JPEG/PNG dalam base64.
 export const faceApi = {
   recognize: (input: FaceRecognizeRequest, signal?: AbortSignal) =>
@@ -153,4 +169,5 @@ export const kioskApi = {
     request<{ nik: string; my_samples: number; total_samples: number; total_users: number; message: string }>(
       '/kiosk/face/train', { method: 'POST', body: { NIK }, headers: kioskHeaders, timeoutMs: 120000 }
     ),
+
 }

@@ -121,6 +121,26 @@ export interface HasilPakarResponse {
   }
 }
 
+feature/measleswatch-frontend
+// MeaslesWatch AI Types
+export type MeaslesClass =
+  | 'Chickenpox'
+  | 'Cowpox'
+  | 'HFMD'
+  | 'Healthy'
+  | 'Measles'
+  | 'Monkeypox'
+
+export type MeaslesProbabilities = Record<MeaslesClass, number>
+
+export interface MeaslesPredictResponse {
+  prediction: MeaslesClass
+  class_index: number
+  confidence: number
+  probabilities: MeaslesProbabilities
+  inference_time_ms: number
+  disclaimer: string
+
 
 export interface FaceRecognizeRequest {
   image: string
