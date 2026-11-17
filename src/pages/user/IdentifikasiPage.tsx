@@ -1,26 +1,8 @@
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-
-type Screen = 'choose' | 'rfid' | 'face' | 'manual' | 'confirm' | 'screening'
-type Method = 'face' | 'rfid' | 'manual'
-
-interface Patient {
-    name: string
-    nik: string
-    birthDate: string
-    gender: string
-    source: Method
-}
-
-const DEMO_PATIENT: Patient = {
-    name: 'Aisyah Putri',
-    nik: '3174********0001',
-    birthDate: '2000-03-12',
-    gender: 'Perempuan',
-    source: 'rfid',
-}
+import { kioskApi, kioskSessionApi } from '@/api/endpoints'
 
 function Icon({
     name,
@@ -106,615 +88,251 @@ function Icon({
             )
     }
 }
-
-function MethodCard({
-    icon,
-    title,
-    description,
-    onClick,
-}: {
-    icon: 'face' | 'card' | 'keyboard'
-    title: string
-    description: string
-    onClick: () => void
-}) {
-    return (
-        <button
-            type="button"
-            onClick={onClick}
-            className="group flex h-full min-h-0 flex-col items-start rounded-2xl border border-[#e1e9f4] bg-white/95 p-4 text-left shadow-[0_5px_18px_rgba(31,91,190,0.06)] transition hover:-translate-y-1 hover:border-[#175CD3] hover:shadow-lg sm:p-5"
-        >
-            <span className="flex size-14 shrink-0 items-center justify-center rounded-xl bg-[#eaf1fd] text-[#175CD3] transition group-hover:bg-[#175CD3] group-hover:text-white">
-                <Icon name={icon} size={30} />
-            </span>
-
-            <span className="mt-4 flex w-full items-center justify-between gap-2">
-                <span className="text-base font-bold text-[#183b5b] sm:text-lg">{title}</span>
-                <span className="shrink-0 text-[#175CD3]">
-                    <Icon name="arrow" size={19} />
-                </span>
-            </span>
-
-            <span className="mt-2 text-xs leading-relaxed text-[#647990] sm:text-sm">
-                {description}
-            </span>
-        </button>
-    )
-}
-
-function PrimaryButton({
-    children,
-    onClick,
-    disabled = false,
-}: {
-    children: React.ReactNode
-    onClick: () => void
-    disabled?: boolean
-}) {
-    return (
-        <button
-            type="button"
-            onClick={onClick}
-            disabled={disabled}
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#175CD3] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#124FB8] disabled:cursor-not-allowed disabled:opacity-50"
-        >
-            {children}
-        </button>
-    )
-}
-
 export default function IdentifikasiPage() {
-    const [screen, setScreen] = useState<Screen>('choose')
-    const [patient, setPatient] = useState<Patient | null>(null)
     const navigate = useNavigate()
-    const [manualData, setManualData] = useState({
-        nik: '',
-        name: '',
-        birthDate: '',
-        gender: '',
-    })
+    const [screen, setScreen] = useState<'rfid' | 'email' | 'face' | 'confirm'>('rfid')
+    const [patient, setPatient] = useState<{
+        name: string; nik: string; birthDate: string; gender: string;
+        source: 'rfid'; email?: string; bloodType?: string | null; address?: string | null;
+    } | null>(null)
+    const [rfidUid, setRfidUid] = useState('')
+    const [email, setEmail] = useState('')
+    const [busy, setBusy] = useState(false)
+    const [message, setMessage] = useState('')
+    const [messageType, setMessageType] = useState<'info' | 'error' | 'success'>('info')
+    const [cameraReady, setCameraReady] = useState(false)
+    const [stored, setStored] = useState(0)
+    const [target, setTarget] = useState(100)
+    const [kioskSessionToken, setKioskSessionToken] = useState<string | null>(null)
+    const videoRef = useRef<HTMLVideoElement>(null)
+    const streamRef = useRef<MediaStream | null>(null)
 
-    const goBack = () => {
-        if (screen === 'screening') {
-            setScreen('confirm')
-            return
+    useEffect(() => {
+        if (screen !== 'face') return
+        let cancelled = false
+        const start = async () => {
+            try {
+                if (!navigator.mediaDevices?.getUserMedia) throw new Error('Kamera memerlukan HTTPS atau localhost.')
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }, audio: false,
+                })
+                if (cancelled) { stream.getTracks().forEach(t => t.stop()); return }
+                streamRef.current = stream
+                if (videoRef.current) {
+                    videoRef.current.srcObject = stream
+                    await videoRef.current.play()
+                    setCameraReady(true)
+                }
+            } catch (e) {
+                setMessage(e instanceof Error ? e.message : 'Kamera tidak dapat dibuka.')
+                setMessageType('error')
+            }
         }
+        void start()
+        return () => {
+            cancelled = true
+            streamRef.current?.getTracks().forEach(t => t.stop())
+            streamRef.current = null
+            setCameraReady(false)
+        }
+    }, [screen])
 
-        setScreen('choose')
-        setPatient(null)
+    const captureFrame = () => {
+        const video = videoRef.current
+        if (!video || !video.videoWidth || !video.videoHeight) throw new Error('Kamera belum siap.')
+        const canvas = document.createElement('canvas')
+        canvas.width = video.videoWidth
+        canvas.height = video.videoHeight
+        const ctx = canvas.getContext('2d')
+        if (!ctx) throw new Error('Tidak dapat memproses frame kamera.')
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+        const image = canvas.toDataURL('image/jpeg', 0.82).split(',')[1]
+        if (!image) throw new Error('Gagal mengambil gambar.')
+        return image
     }
 
-    const startMethod = (method: Method) => {
-        if (method === 'rfid') setScreen('rfid')
-        if (method === 'face') setScreen('face')
-        if (method === 'manual') setScreen('manual')
+    const identifyRFID = async (uid: string) => {
+        setBusy(true); setMessage('Mencari data pasien dari UID RFID...'); setMessageType('info')
+        try {
+            const data = await kioskApi.identifyRFID(uid.trim())
+            setPatient({
+                name: data.Name, nik: data.NIK, birthDate: data.Tempat_Tgl_Lahir ?? '',
+                gender: '', source: 'rfid', email: data.Email ?? '',
+                bloodType: data.Golongan_darah, address: data.Alamat,
+            })
+            setEmail(data.Email ?? '')
+            setStored(data.face_samples); setTarget(data.face_target)
+            setScreen('email'); setMessage('')
+        } catch (e) {
+            setMessage(e instanceof Error ? e.message : 'Kartu RFID tidak dapat dikenali.')
+            setMessageType('error')
+        } finally { setBusy(false) }
     }
 
-    // Simulasi pembacaan RFID.
-    // Nantinya diganti dengan respons dari RFID reader dan backend.
-    const simulateRfid = () => {
-        setPatient(DEMO_PATIENT)
-        setScreen('confirm')
-    }
-
-    // Simulasi pencocokan wajah.
-    // Nantinya diganti dengan hasil face recognition.
-    const simulateFace = () => {
-        setPatient({
-            ...DEMO_PATIENT,
-            source: 'face',
-        })
-        setScreen('confirm')
-    }
-
-    const submitManual = (event: FormEvent<HTMLFormElement>) => {
+    const saveEmail = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault()
+        if (!patient) return
+        setBusy(true); setMessage('Menyimpan email pasien...'); setMessageType('info')
+        try {
+            await kioskApi.saveEmail(patient.nik, email.trim())
+            setPatient({ ...patient, email: email.trim() })
+            setScreen('face'); setMessage('Email tersimpan. Silakan hadapkan wajah ke kamera.')
+            setMessageType('success')
+        } catch (e) {
+            setMessage(e instanceof Error ? e.message : 'Email gagal disimpan.')
+            setMessageType('error')
+        } finally { setBusy(false) }
+    }
 
-        if (
-            manualData.nik.length !== 16 ||
-            !manualData.name.trim() ||
-            !manualData.birthDate ||
-            !manualData.gender
-        ) {
+    const verifyOrEnrollFace = async () => {
+        if (!patient) return
+        setBusy(true); setMessage('Memeriksa kecocokan wajah dengan identitas RFID...'); setMessageType('info')
+        try {
+            const first = await kioskApi.recognize(patient.nik, captureFrame())
+            if (first.recognized && first.match && first.user_id === patient.nik) {
+                setMessage('Wajah cocok. Membuat sesi skrining...')
+                const session = await kioskSessionApi.create(patient.nik, captureFrame())
+                setKioskSessionToken(session.access_token)
+                setMessage('Wajah cocok dan sesi skrining berhasil dibuat.')
+                setMessageType('success')
+                setScreen('confirm')
+                return
+            }
+            if (first.recognized && !first.match) {
+                throw new Error('Wajah yang terdeteksi terdaftar atas identitas lain. Skrining dihentikan.')
+            }
+
+            setMessage('Wajah belum terdaftar. Memulai pendaftaran wajah untuk identitas RFID ini...')
+            let current = stored
+            while (current < target) {
+                const result = await kioskApi.capture(patient.nik, captureFrame())
+                current = result.stored
+                setStored(current)
+                if (!result.face_detected) {
+                    await new Promise(resolve => setTimeout(resolve, 450))
+                    continue
+                }
+                setMessage(`Mengambil sampel wajah: ${current}/${target}`)
+                await new Promise(resolve => setTimeout(resolve, 350))
+            }
+            setMessage('Sampel lengkap. Melatih model pengenalan wajah...')
+            await kioskApi.train(patient.nik)
+            setMessage('Wajah terdaftar. Membuat sesi skrining...')
+            const session = await kioskSessionApi.create(patient.nik, captureFrame())
+            setKioskSessionToken(session.access_token)
+            setMessage('Pendaftaran wajah dan sesi skrining berhasil.')
+            setMessageType('success')
+            setScreen('confirm')
+        } catch (e) {
+            setMessage(e instanceof Error ? e.message : 'Proses Face Recognition gagal.')
+            setMessageType('error')
+        } finally { setBusy(false) }
+    }
+
+    const reset = () => {
+        setScreen('rfid'); setPatient(null); setRfidUid(''); setEmail('')
+        setStored(0); setMessage(''); setMessageType('info')
+    }
+
+    const continueScreening = () => {
+        if (!patient || !kioskSessionToken) {
+            setMessage('Sesi skrining belum tersedia. Silakan verifikasi wajah kembali.')
+            setMessageType('error')
             return
         }
-
-        setPatient({
-            name: manualData.name,
-            nik: `${manualData.nik.slice(0, 4)}********${manualData.nik.slice(-4)}`,
-            birthDate: manualData.birthDate,
-            gender: manualData.gender,
-            source: 'manual',
+        navigate('/user/skrining/pemeriksaan', {
+            state: {
+                patient: { name: patient.name, nik: patient.nik, birthDate: patient.birthDate, gender: patient.gender, source: 'rfid' },
+                kioskSessionToken,
+            },
         })
-
-        setScreen('confirm')
-    }
-
-    const dateLabel = (date: string) => {
-        if (!date) return '-'
-
-        return new Date(`${date}T00:00:00`).toLocaleDateString('id-ID', {
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric',
-        })
-    }
-
-    const sourceLabel = {
-        rfid: 'Kartu RFID',
-        face: 'Face Recognition',
-        manual: 'Input Manual',
     }
 
     return (
-        <main className="relative h-dvh w-full overflow-hidden bg-[#f7faff]">
-            {/* Background dekoratif */}
+        <main className="relative h-dvh w-full overflow-y-auto bg-[#f7faff]">
             <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
                 <div className="absolute -left-36 -top-36 size-[340px] rounded-full bg-[#dce7ff]/55 blur-2xl" />
                 <div className="absolute -top-48 left-[38%] h-[390px] w-[460px] rounded-[45%] bg-[#a4e9df]/45 blur-2xl" />
                 <div className="absolute -right-36 top-[35%] size-[300px] rounded-full bg-[#b8eee8]/35 blur-2xl" />
-                <div className="absolute -bottom-48 -left-20 h-[300px] w-[400px] rounded-full bg-[#9db6f5]/30 blur-2xl" />
             </div>
-
-            <div className="relative z-10 mx-auto flex h-full w-full max-w-[1440px] flex-col px-5 py-5 sm:px-8 sm:py-6 lg:px-14">
-                {/* Header kecil tanpa navbar */}
-                <div className="flex shrink-0 items-center justify-between gap-3">
-                    {screen === 'choose' ? (
-                        <Link
-                            to="/user"
-                            className="inline-flex items-center gap-2 text-sm font-semibold text-[#647990] transition hover:text-[#175CD3]"
-                        >
-                            <Icon name="back" size={18} />
-                            Kembali ke Beranda
-                        </Link>
-                    ) : (
-                        <button
-                            type="button"
-                            onClick={goBack}
-                            className="inline-flex items-center gap-2 text-sm font-semibold text-[#647990] transition hover:text-[#175CD3]"
-                        >
-                            <Icon name="back" size={18} />
-                            {screen === 'screening' ? 'Kembali' : 'Ganti Metode'}
-                        </button>
-                    )}
-
-                    {screen !== 'choose' && (
-                        <span className="rounded-full bg-white/80 px-4 py-2 text-xs font-semibold text-[#175CD3] shadow-sm">
-                            {screen === 'screening' ? 'Tahap 2 · Pemeriksaan' : 'Tahap 1 · Identifikasi'}
-                        </span>
-                    )}
+            <div className="relative z-10 mx-auto flex min-h-full w-full max-w-[1000px] flex-col px-5 py-6 sm:px-8">
+                <div className="mb-6 flex items-center justify-between">
+                    <Link to="/user" className="text-sm font-semibold text-[#647990] hover:text-[#175CD3]">← Kembali ke Beranda</Link>
+                    <span className="rounded-full bg-white px-4 py-2 text-xs font-semibold text-[#175CD3] shadow-sm">Identifikasi Pasien</span>
                 </div>
 
-                {/* PILIH METODE */}
-                {screen === 'choose' && (
-                    <section className="mx-auto flex min-h-0 w-full max-w-[1160px] flex-1 flex-col justify-center py-4">
-                        <div className="mb-7 shrink-0 text-center sm:mb-9">
-                            <span className="mx-auto mb-3 flex size-14 items-center justify-center rounded-2xl bg-[#eaf1fd] text-[#175CD3] sm:size-16">
-                                <Icon name="user" size={32} />
-                            </span>
-
-                            <h1 className="text-2xl font-extrabold tracking-tight text-[#183b5b] sm:text-3xl lg:text-[34px]">
-                                Pilih Metode Identifikasi
-                            </h1>
-
-                            <p className="mx-auto mt-2 whitespace-normal text-sm text-[#647990] sm:whitespace-nowrap sm:text-base">
-                                Pilih cara untuk mengenali data Anda sebelum memulai skrining campak.
-                            </p>
-                        </div>
-
-                        <div className="grid min-h-0 grid-cols-1 gap-4 md:grid-cols-3 lg:gap-6">
-                            <MethodCard
-                                icon="face"
-                                title="Identifikasi Wajah"
-                                description="Untuk pasien yang sudah mendaftarkan data wajah sebelumnya."
-                                onClick={() => startMethod('face')}
-                            />
-
-                            <MethodCard
-                                icon="card"
-                                title="Gunakan Kartu RFID"
-                                description="Tempelkan kartu identitas yang sudah terdaftar pada reader."
-                                onClick={() => startMethod('rfid')}
-                            />
-
-                            <MethodCard
-                                icon="keyboard"
-                                title="Input Data Manual"
-                                description="Gunakan pilihan ini jika tidak membawa kartu identitas."
-                                onClick={() => startMethod('manual')}
-                            />
-                        </div>
-
-                        <div className="mx-auto mt-5 flex max-w-[850px] shrink-0 items-start gap-2 rounded-xl border border-[#dbe7f5] bg-white/75 p-3 text-xs leading-relaxed text-[#647990] sm:text-sm">
-                            <span className="mt-0.5 shrink-0 text-[#175CD3]">
-                                <Icon name="info" size={17} />
-                            </span>
-                            Data identitas akan digunakan untuk menghubungkan proses skrining dengan pasien yang sesuai.
-                        </div>
-                    </section>
-                )}
-
-                {/* RFID */}
                 {screen === 'rfid' && (
-                    <section className="mx-auto my-auto w-full max-w-[650px] rounded-3xl border border-white bg-white/90 p-5 shadow-lg sm:p-8">
+                    <section className="m-auto w-full max-w-[620px] rounded-3xl border border-white bg-white/95 p-6 shadow-lg sm:p-9">
                         <div className="text-center">
-                            <span className="mx-auto mb-3 flex size-14 items-center justify-center rounded-2xl bg-[#eaf1fd] text-[#175CD3]">
-                                <Icon name="card" size={32} />
-                            </span>
-                            <h1 className="text-xl font-extrabold text-[#183b5b] sm:text-2xl">
-                                Tempelkan Kartu Identitas
-                            </h1>
-                            <p className="mt-2 text-sm text-[#647990]">
-                                Tempelkan kartu RFID pada area card reader.
-                            </p>
+                            <span className="mx-auto mb-4 flex size-16 items-center justify-center rounded-2xl bg-[#eaf1fd] text-[#175CD3]"><Icon name="card" size={34} /></span>
+                            <h1 className="text-2xl font-extrabold text-[#183b5b]">Identifikasi dengan RFID</h1>
+                            <p className="mt-2 text-sm text-[#647990]">Tempelkan kartu RFID untuk mengambil data pasien yang sudah terdaftar.</p>
                         </div>
-
-                        <div className="mx-auto my-5 flex min-h-[150px] max-w-sm flex-col items-center justify-center rounded-2xl bg-[#edf4ff] p-5">
-                            <div className="flex size-16 items-center justify-center rounded-full border-2 border-dashed border-[#175CD3]/50 bg-white text-[#175CD3]">
-                                <Icon name="card" size={36} />
-                            </div>
-                            <p className="mt-3 text-sm font-semibold text-[#183b5b]">
-                                Menunggu kartu RFID...
-                            </p>
-                            <p className="mt-1 text-xs text-[#647990]">
-                                Dekatkan kartu ke reader
-                            </p>
+                        <div className="my-6 rounded-2xl bg-[#edf4ff] p-6 text-center">
+                            <Icon name="card" size={44} />
+                            <p className="mt-3 font-bold text-[#183b5b]">Menunggu kartu RFID...</p>
+                            <p className="mt-1 text-xs text-[#647990]">Mode simulasi sampai reader Orange Pi terhubung</p>
                         </div>
-
-                        <div className="flex justify-center">
-                            <PrimaryButton onClick={simulateRfid}>
-                                Simulasikan Kartu Terbaca
-                            </PrimaryButton>
-                        </div>
-                        <p className="mt-3 text-center text-[11px] text-[#8291a5]">
-                            Tombol ini hanya untuk pengujian tampilan frontend.
-                        </p>
+                        <label className="mb-2 block text-xs font-semibold text-[#183b5b]" htmlFor="rfid-uid">UID RFID (simulasi)</label>
+                        <input id="rfid-uid" value={rfidUid} onChange={e => setRfidUid(e.target.value)} placeholder="Masukkan UID kartu uji" className="w-full rounded-xl border border-[#d8e0ea] px-4 py-3 text-sm outline-none focus:border-[#175CD3]" />
+                        <button disabled={busy || !rfidUid.trim()} onClick={() => void identifyRFID(rfidUid)} className="mt-4 w-full rounded-xl bg-[#175CD3] px-5 py-3 font-bold text-white disabled:opacity-50">{busy ? 'Memproses...' : 'Baca UID RFID'}</button>
+                        <p className="mt-3 text-center text-[11px] text-[#8291a5]">UID harus sudah terhubung dengan NIK pasien pada tabel patient_cards.</p>
                     </section>
                 )}
 
-                {/* FACE RECOGNITION */}
-                {screen === 'face' && (
-                    <section className="mx-auto my-auto w-full max-w-[760px] rounded-3xl border border-white bg-white/90 p-5 shadow-lg sm:p-8">
-                        <div className="text-center">
-                            <span className="mx-auto mb-3 flex size-14 items-center justify-center rounded-2xl bg-[#eaf1fd] text-[#175CD3]">
-                                <Icon name="face" size={32} />
-                            </span>
-                            <h1 className="text-xl font-extrabold text-[#183b5b] sm:text-2xl">
-                                Pindai Wajah Anda
-                            </h1>
-                            <p className="mt-2 text-sm text-[#647990]">
-                                Posisikan wajah di depan kamera untuk mengenali identitas Anda.
-                            </p>
+                {screen === 'email' && patient && (
+                    <section className="m-auto w-full max-w-[620px] rounded-3xl border border-white bg-white/95 p-6 shadow-lg sm:p-9">
+                        <h1 className="text-center text-2xl font-extrabold text-[#183b5b]">Data Pasien Ditemukan</h1>
+                        <div className="my-5 rounded-2xl border border-[#e1e9f4] p-4">
+                            <p className="text-lg font-bold text-[#183b5b]">{patient.name}</p>
+                            <p className="text-sm text-[#647990]">NIK: {patient.nik}</p>
+                            <p className="mt-1 text-sm text-[#647990]">Tempat/Tgl Lahir: {patient.birthDate || '-'}</p>
+                            <p className="text-sm text-[#647990]">Golongan darah: {patient.bloodType || '-'}</p>
                         </div>
-
-                        <div className="mx-auto my-5 grid max-w-xl gap-4 sm:grid-cols-[1fr_0.85fr] sm:items-center">
-                            <div className="flex aspect-[4/3] items-center justify-center rounded-2xl border-2 border-dashed border-[#9bb9e7] bg-[#edf4ff]">
-                                <div className="text-center text-[#175CD3]">
-                                    <Icon name="camera" size={42} />
-                                    <p className="mt-2 text-sm font-semibold">Area pemindaian wajah</p>
-                                    <p className="mt-1 text-xs text-[#647990]">Kamera belum terhubung</p>
-                                </div>
-                            </div>
-
-                            <div className="space-y-3">
-                                <p className="text-sm font-bold text-[#183b5b]">Pastikan:</p>
-                                {[
-                                    'Wajah terlihat jelas',
-                                    'Pencahayaan cukup',
-                                    'Posisi wajah menghadap kamera',
-                                ].map((item) => (
-                                    <div key={item} className="flex items-start gap-2 text-sm text-[#647990]">
-                                        <span className="mt-0.5 text-[#067647]">
-                                            <Icon name="check" size={17} />
-                                        </span>
-                                        {item}
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div className="flex justify-center">
-                            <PrimaryButton onClick={simulateFace}>
-                                Simulasikan Pencocokan Wajah
-                            </PrimaryButton>
-                        </div>
-                        <p className="mt-3 text-center text-[11px] text-[#8291a5]">
-                            Simulasi frontend. Kamera dan pengenalan wajah belum terhubung.
-                        </p>
-                    </section>
-                )}
-
-                {/* INPUT MANUAL */}
-                {screen === 'manual' && (
-                    <section className="mx-auto my-auto w-full max-w-[680px] rounded-3xl border border-white bg-white/90 p-5 shadow-lg sm:p-7">
-                        <div className="mb-5 text-center">
-                            <span className="mx-auto mb-3 flex size-12 items-center justify-center rounded-xl bg-[#eaf1fd] text-[#175CD3]">
-                                <Icon name="keyboard" size={28} />
-                            </span>
-                            <h1 className="text-xl font-extrabold text-[#183b5b] sm:text-2xl">
-                                Input Data Pasien
-                            </h1>
-                            <p className="mt-1 text-sm text-[#647990]">
-                                Lengkapi data berikut untuk identifikasi pasien.
-                            </p>
-                        </div>
-
-                        <form onSubmit={submitManual} className="space-y-3">
-                            <div>
-                                <label htmlFor="nik" className="mb-1 block text-xs font-semibold text-[#183b5b]">
-                                    Nomor Identitas
-                                </label>
-                                <input
-                                    id="nik"
-                                    type="text"
-                                    inputMode="numeric"
-                                    maxLength={16}
-                                    minLength={16}
-                                    value={manualData.nik}
-                                    onChange={(event) =>
-                                        setManualData({
-                                            ...manualData,
-                                            nik: event.target.value.replace(/\D/g, ''),
-                                        })
-                                    }
-                                    placeholder="Masukkan 16 digit nomor identitas"
-                                    className="w-full rounded-xl border border-[#d8e0ea] bg-white px-4 py-2.5 text-sm outline-none focus:border-[#175CD3]"
-                                    required
-                                />
-                            </div>
-
-                            <div>
-                                <label htmlFor="name" className="mb-1 block text-xs font-semibold text-[#183b5b]">
-                                    Nama Lengkap
-                                </label>
-                                <input
-                                    id="name"
-                                    type="text"
-                                    value={manualData.name}
-                                    onChange={(event) =>
-                                        setManualData({ ...manualData, name: event.target.value })
-                                    }
-                                    placeholder="Masukkan nama lengkap"
-                                    className="w-full rounded-xl border border-[#d8e0ea] bg-white px-4 py-2.5 text-sm outline-none focus:border-[#175CD3]"
-                                    required
-                                />
-                            </div>
-
-                            <div className="grid gap-3 sm:grid-cols-2">
-                                <div>
-                                    <label htmlFor="birthDate" className="mb-1 block text-xs font-semibold text-[#183b5b]">
-                                        Tanggal Lahir
-                                    </label>
-                                    <input
-                                        id="birthDate"
-                                        type="date"
-                                        value={manualData.birthDate}
-                                        onChange={(event) =>
-                                            setManualData({ ...manualData, birthDate: event.target.value })
-                                        }
-                                        className="w-full rounded-xl border border-[#d8e0ea] bg-white px-4 py-2.5 text-sm outline-none focus:border-[#175CD3]"
-                                        required
-                                    />
-                                </div>
-
-                                <div>
-                                    <label htmlFor="gender" className="mb-1 block text-xs font-semibold text-[#183b5b]">
-                                        Jenis Kelamin
-                                    </label>
-                                    <select
-                                        id="gender"
-                                        value={manualData.gender}
-                                        onChange={(event) =>
-                                            setManualData({ ...manualData, gender: event.target.value })
-                                        }
-                                        className="w-full rounded-xl border border-[#d8e0ea] bg-white px-4 py-2.5 text-sm outline-none focus:border-[#175CD3]"
-                                        required
-                                    >
-                                        <option value="">Pilih jenis kelamin</option>
-                                        <option value="Laki-laki">Laki-laki</option>
-                                        <option value="Perempuan">Perempuan</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <p className="rounded-lg bg-[#fff8e8] p-3 text-xs leading-relaxed text-[#8a5b12]">
-                                Data yang dimasukkan secara manual tetap memerlukan proses verifikasi.
-                            </p>
-
-                            <div className="flex justify-end pt-1">
-                                <PrimaryButton onClick={() => { }}>
-                                    Lanjutkan <Icon name="arrow" size={17} />
-                                </PrimaryButton>
-                            </div>
+                        <form onSubmit={saveEmail}>
+                            <label htmlFor="patient-email" className="mb-2 block text-sm font-bold text-[#183b5b]">Email untuk hasil skrining dan follow-up</label>
+                            <input id="patient-email" type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="nama@email.com" className="w-full rounded-xl border border-[#d8e0ea] px-4 py-3 text-sm outline-none focus:border-[#175CD3]" />
+                            <button disabled={busy} className="mt-4 w-full rounded-xl bg-[#175CD3] px-5 py-3 font-bold text-white disabled:opacity-50">{busy ? 'Menyimpan...' : 'Simpan dan Lanjutkan'}</button>
                         </form>
                     </section>
                 )}
 
-                {/* KONFIRMASI IDENTITAS */}
+                {screen === 'face' && patient && (
+                    <section className="m-auto w-full max-w-[760px] rounded-3xl border border-white bg-white/95 p-6 shadow-lg sm:p-8">
+                        <h1 className="text-center text-2xl font-extrabold text-[#183b5b]">Verifikasi Wajah</h1>
+                        <p className="mt-2 text-center text-sm text-[#647990]">Wajah akan dicocokkan dengan NIK yang dibaca dari RFID.</p>
+                        <div className="mx-auto my-5 aspect-video max-w-[560px] overflow-hidden rounded-2xl bg-[#eaf1fd]">
+                            <video ref={videoRef} autoPlay muted playsInline className="h-full w-full object-cover" />
+                        </div>
+                        {stored > 0 && stored < target && <p className="mb-3 text-center text-xs text-[#647990]">Sampel wajah: {stored}/{target}</p>}
+                        {stored >= target && <p className="mb-3 text-center text-xs text-[#067647]">Sampel wajah sudah lengkap.</p>}
+                        <button disabled={!cameraReady || busy} onClick={() => void verifyOrEnrollFace()} className="w-full rounded-xl bg-[#175CD3] px-5 py-3 font-bold text-white disabled:opacity-50">{busy ? 'Memproses wajah...' : 'Verifikasi / Daftarkan Wajah'}</button>
+                    </section>
+                )}
+
                 {screen === 'confirm' && patient && (
-                    <section className="mx-auto my-auto w-full max-w-[700px] rounded-3xl border border-white bg-white/90 p-5 shadow-lg sm:p-8">
-                        <div className="mb-5 text-center">
-                            <span className="mx-auto mb-3 flex size-14 items-center justify-center rounded-2xl bg-[#e6f4ea] text-[#067647]">
-                                <Icon name="check" size={32} />
-                            </span>
-                            <h1 className="text-xl font-extrabold text-[#183b5b] sm:text-2xl">
-                                Identitas Berhasil Dikenali
-                            </h1>
-                            <p className="mt-2 text-sm text-[#647990]">
-                                Periksa kembali informasi pasien sebelum memulai pemeriksaan.
-                            </p>
+                    <section className="m-auto w-full max-w-[620px] rounded-3xl border border-white bg-white/95 p-6 shadow-lg sm:p-9">
+                        <div className="text-center">
+                            <span className="mx-auto mb-3 flex size-14 items-center justify-center rounded-2xl bg-[#e6f4ea] text-[#067647]"><Icon name="check" size={32} /></span>
+                            <h1 className="text-2xl font-extrabold text-[#183b5b]">Identitas Terverifikasi</h1>
+                            <p className="mt-2 text-sm text-[#647990]">Data RFID dan hasil Face Recognition sudah diperiksa.</p>
                         </div>
-
-                        <div className="rounded-2xl border border-[#e1e9f4] bg-white p-4 sm:p-5">
-                            <div className="grid gap-4 sm:grid-cols-[72px_1fr] sm:items-center">
-                                <div className="flex size-16 items-center justify-center rounded-xl bg-[#eaf1fd] text-[#175CD3]">
-                                    <Icon name="user" size={34} />
-                                </div>
-
-                                <div>
-                                    <p className="text-lg font-bold text-[#183b5b]">{patient.name}</p>
-                                    <p className="text-xs text-[#647990]">
-                                        Metode identifikasi: {sourceLabel[patient.source]}
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="mt-4 grid grid-cols-2 gap-4 border-t border-[#edf1f6] pt-4 text-sm">
-                                <div>
-                                    <p className="text-xs text-[#8291a5]">Nomor Identitas</p>
-                                    <p className="mt-1 font-semibold text-[#183b5b]">{patient.nik}</p>
-                                </div>
-                                <div>
-                                    <p className="text-xs text-[#8291a5]">Tanggal Lahir</p>
-                                    <p className="mt-1 font-semibold text-[#183b5b]">{dateLabel(patient.birthDate)}</p>
-                                </div>
-                                <div>
-                                    <p className="text-xs text-[#8291a5]">Jenis Kelamin</p>
-                                    <p className="mt-1 font-semibold text-[#183b5b]">{patient.gender}</p>
-                                </div>
-                                <div>
-                                    <p className="text-xs text-[#8291a5]">Status Identifikasi</p>
-                                    <p className="mt-1 font-semibold text-[#067647]">Data ditemukan</p>
-                                </div>
-                            </div>
+                        <div className="my-6 rounded-2xl border border-[#e1e9f4] p-5">
+                            <p className="text-lg font-bold text-[#183b5b]">{patient.name}</p>
+                            <p className="mt-1 text-sm text-[#647990]">NIK: {patient.nik}</p>
+                            <p className="text-sm text-[#647990]">Email: {patient.email}</p>
+                            <p className="text-sm text-[#647990]">Golongan darah: {patient.bloodType || '-'}</p>
                         </div>
-
-                        <div className="mt-4 flex items-start gap-2 rounded-xl bg-[#eaf1fd] p-3 text-xs leading-relaxed text-[#365d94]">
-                            <Icon name="info" size={17} />
-                            Pastikan data pasien sudah sesuai. Setelah dikonfirmasi, Anda akan langsung masuk ke tahap pemeriksaan.
-                        </div>
-
-                        <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
-                            <button
-                                type="button"
-                                onClick={goBack}
-                                className="rounded-xl border border-[#175CD3] px-5 py-3 text-sm font-bold text-[#175CD3] hover:bg-[#eaf1fd]"
-                            >
-                                Identifikasi Ulang
-                            </button>
-
-                            <PrimaryButton
-                                onClick={() => {
-                                    if (!patient) return
-
-                                    navigate('/user/skrining/pemeriksaan', {
-                                        state: { patient },
-                                    })
-                                }}
-                            >
-                                Konfirmasi dan Mulai Pemeriksaan
-                                <Icon name="arrow" size={18} />
-                            </PrimaryButton>
-                        </div>
+                        <button onClick={continueScreening} className="w-full rounded-xl bg-[#175CD3] px-5 py-3 font-bold text-white">Lanjut ke Skrining</button>
                     </section>
                 )}
 
-                {/* UI PEMERIKSAAN SETELAH IDENTIFIKASI */}
-                {screen === 'screening' && patient && (
-                    <section className="mx-auto flex min-h-0 w-full max-w-[1050px] flex-1 flex-col justify-center py-3">
-                        <div className="mb-5 shrink-0 text-center">
-                            <span className="mx-auto mb-3 flex size-14 items-center justify-center rounded-2xl bg-[#eaf1fd] text-[#175CD3]">
-                                <Icon name="camera" size={30} />
-                            </span>
-
-                            <h1 className="text-2xl font-extrabold text-[#183b5b] sm:text-3xl">
-                                Pemeriksaan Awal Campak
-                            </h1>
-
-                            <p className="mt-2 text-sm text-[#647990]">
-                                Halo, {patient.name}. Ikuti tahapan pemeriksaan melalui kios MeaslesCare.
-                            </p>
-                        </div>
-
-                        <div className="grid min-h-0 gap-5 md:grid-cols-[1.1fr_0.9fr]">
-                            {/* Area kamera */}
-                            <div className="flex min-h-[190px] flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[#a9c2e7] bg-white/85 p-5 sm:min-h-[260px]">
-                                <span className="flex size-16 items-center justify-center rounded-2xl bg-[#eaf1fd] text-[#175CD3]">
-                                    <Icon name="camera" size={36} />
-                                </span>
-                                <h2 className="mt-4 text-lg font-bold text-[#183b5b]">
-                                    Pengambilan Foto Ruam
-                                </h2>
-                                <p className="mt-2 max-w-sm text-center text-xs leading-relaxed text-[#647990]">
-                                    Posisikan area kulit yang ingin diperiksa di depan kamera sesuai petunjuk pada layar.
-                                </p>
-                                <span className="mt-4 rounded-full bg-[#fff4e5] px-3 py-1.5 text-xs font-semibold text-[#b54708]">
-                                    Kamera belum terhubung
-                                </span>
-                            </div>
-
-                            {/* Instruksi */}
-                            <div className="flex min-h-0 flex-col rounded-2xl border border-white bg-white/90 p-5 shadow-sm">
-                                <div className="mb-4">
-                                    <p className="text-xs font-bold tracking-wide text-[#175CD3]">
-                                        LANGKAH 1 DARI 3
-                                    </p>
-                                    <h2 className="mt-1 text-lg font-bold text-[#183b5b]">
-                                        Ambil Foto Area Kulit
-                                    </h2>
-                                </div>
-
-                                <div className="space-y-3">
-                                    {[
-                                        'Pastikan area kulit terlihat jelas.',
-                                        'Gunakan pencahayaan yang cukup.',
-                                        'Ikuti arahan posisi pada layar kios.',
-                                    ].map((item, index) => (
-                                        <div key={item} className="flex items-start gap-3 text-sm text-[#647990]">
-                                            <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-[#eaf1fd] text-xs font-bold text-[#175CD3]">
-                                                {index + 1}
-                                            </span>
-                                            {item}
-                                        </div>
-                                    ))}
-                                </div>
-
-                                <div className="mt-auto pt-5">
-                                    <button
-                                        type="button"
-                                        disabled
-                                        title="Fitur kamera akan dihubungkan pada tahap integrasi perangkat"
-                                        className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#175CD3] px-5 py-3 text-sm font-bold text-white opacity-60"
-                                    >
-                                        <Icon name="camera" size={18} />
-                                        Ambil Foto
-                                    </button>
-                                    <p className="mt-2 text-center text-[11px] text-[#8291a5]">
-                                        Integrasi kamera akan dilakukan pada tahap berikutnya.
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Progress pemeriksaan */}
-                        <div className="mt-5 grid shrink-0 grid-cols-3 gap-2 sm:gap-4">
-                            {[
-                                { number: '01', title: 'Foto Ruam', active: true },
-                                { number: '02', title: 'Pertanyaan Gejala', active: false },
-                                { number: '03', title: 'Hasil Skrining', active: false },
-                            ].map((step) => (
-                                <div
-                                    key={step.number}
-                                    className={`rounded-xl border p-3 text-center ${step.active
-                                            ? 'border-[#175CD3] bg-[#eaf1fd]'
-                                            : 'border-[#e1e9f4] bg-white/75'
-                                        }`}
-                                >
-                                    <p className={`text-xs font-bold ${step.active ? 'text-[#175CD3]' : 'text-[#8291a5]'}`}>
-                                        {step.number}
-                                    </p>
-                                    <p className={`mt-1 text-xs font-semibold sm:text-sm ${step.active ? 'text-[#183b5b]' : 'text-[#647990]'}`}>
-                                        {step.title}
-                                    </p>
-                                </div>
-                            ))}
-                        </div>
-                    </section>
+                {message && (
+                    <p role="status" className={`mx-auto mt-4 max-w-[760px] rounded-xl p-3 text-center text-xs ${messageType === 'error' ? 'bg-red-50 text-red-700' : messageType === 'success' ? 'bg-green-50 text-green-700' : 'bg-[#eaf1fd] text-[#365d94]'}`}>{message}</p>
                 )}
-
-                <p className="mt-auto shrink-0 pt-3 text-center text-[10px] text-[#8291a5]">
-                    MeaslesCare · Sistem Skrining Awal Campak
-                </p>
+                {screen !== 'rfid' && (
+                    <button onClick={reset} className="mx-auto mt-5 text-sm font-semibold text-[#647990] hover:text-[#175CD3]">Batalkan dan mulai ulang identifikasi</button>
+                )}
             </div>
         </main>
     )

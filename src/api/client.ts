@@ -1,12 +1,19 @@
+feature/measleswatch-frontend
 // Kosong = mode dev lewat proxy Vite /be-api -> http://localhost:8000 (di-rewrite ke /api/*).
 // Produksi: set VITE_API_BASE_URL ke domain backend. Prefix /api ditambahkan otomatis
 // bila belum ada, jadi contoh berikut sama saja hasilnya:
 //   https://ramirosservers.tail2d4b04.ts.net  atau  https://ramirosservers.tail2d4b04.ts.net/api
 const RAW_BASE = (import.meta.env?.VITE_API_BASE_URL as string | undefined)?.trim() ?? ''
 
+// Kosong = mode dev lewat proxy Vite /be-api -> http://localhost:8000
+// Produksi: set VITE_API_BASE_URL ke domain backend.
+// Prefix /api ditambahkan otomatis jika belum ada.
+const RAW_BASE =
+  (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() ?? ''
+
 function normalizeBase(raw: string): string {
-  const base = raw.replace(/\/+$/, '') // buang "/" di akhir agar tidak jadi "//api/auth/login"
-  return base.endsWith('/api') ? base : `${base}/api` // backend memakai prefix /api
+  const base = raw.replace(/\/+$/, '')
+  return base.endsWith('/api') ? base : `${base}/api`
 }
 
 export const API_BASE = RAW_BASE ? normalizeBase(RAW_BASE) : '/be-api'
@@ -18,16 +25,24 @@ export function getToken(): string | null {
 }
 
 export function setToken(token: string | null): void {
-  if (token) localStorage.setItem(TOKEN_KEY, token)
-  else localStorage.removeItem(TOKEN_KEY)
+  if (token) {
+    localStorage.setItem(TOKEN_KEY, token)
+  } else {
+    localStorage.removeItem(TOKEN_KEY)
+  }
 }
 
 export class ApiError extends Error {
   status: number
   fields?: Record<string, string>
 
-  constructor(status: number, message: string, fields?: Record<string, string>) {
+  constructor(
+    status: number,
+    message: string,
+    fields?: Record<string, string>,
+  ) {
     super(message)
+    this.name = 'ApiError'
     this.status = status
     this.fields = fields
   }
@@ -41,56 +56,108 @@ interface RequestOptions {
   method?: 'GET' | 'POST'
   body?: unknown
   signal?: AbortSignal
+  headers?: Record<string, string>
+  timeoutMs?: number
 }
 
-// Satu pintu request: header auth, timeout 15 detik, dan pemetaan error
-// sesuai tabel kode status di Documentation.md.
-export async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
+// Satu pintu request untuk seluruh API.
+// Mendukung Authorization, custom headers, AbortSignal,
+// dan timeout yang bisa disesuaikan per endpoint.
+export async function request<T>(
+  path: string,
+  opts: RequestOptions = {},
+): Promise<T> {
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), 15000)
+  const timeoutMs = opts.timeoutMs ?? 15000
+
+  const timer = setTimeout(() => {
+    controller.abort()
+  }, timeoutMs)
+
+  const abortFromCaller = () => controller.abort()
+
   if (opts.signal) {
-    opts.signal.addEventListener('abort', () => controller.abort(), { once: true })
+    if (opts.signal.aborted) {
+      controller.abort()
+    } else {
+      opts.signal.addEventListener('abort', abortFromCaller, {
+        once: true,
+      })
+    }
   }
+
   const token = getToken()
-  const headers: Record<string, string> = {}
-  if (opts.body !== undefined) headers['Content-Type'] = 'application/json'
-  if (token) headers['Authorization'] = `Bearer ${token}`
+
+  const headers: Record<string, string> = {
+    ...opts.headers,
+  }
+
+  if (opts.body !== undefined) {
+    headers['Content-Type'] = 'application/json'
+  }
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
 
   let res: Response
+
   try {
     res = await fetch(`${API_BASE}${path}`, {
       method: opts.method ?? 'GET',
       headers,
-      body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
+      body:
+        opts.body === undefined
+          ? undefined
+          : JSON.stringify(opts.body),
       signal: controller.signal,
     })
   } catch (err) {
-    clearTimeout(timer)
-    if (opts.signal?.aborted || controller.signal.aborted) {
-      throw new DOMException('Request dibatalkan', 'AbortError')
+    if (opts.signal) {
+      opts.signal.removeEventListener('abort', abortFromCaller)
     }
+
+    clearTimeout(timer)
+
+    if (opts.signal?.aborted || controller.signal.aborted) {
+      throw new DOMException(
+        'Request dibatalkan atau melewati batas waktu.',
+        'AbortError',
+      )
+    }
+
     throw err
   }
+
+  if (opts.signal) {
+    opts.signal.removeEventListener('abort', abortFromCaller)
+  }
+
   clearTimeout(timer)
 
-  if (res.status === 204) return undefined as T
+  if (res.status === 204) {
+    return undefined as T
+  }
 
   let data: unknown = null
-  const text = await res.text()
-  if (text) {
+  const responseText = await res.text()
+
+  if (responseText) {
     try {
-      data = JSON.parse(text)
+      data = JSON.parse(responseText)
     } catch {
-      data = text
+      data = responseText
     }
   }
 
   if (!res.ok) {
     throw describeError(res.status, data)
   }
+
   return data as T
 }
 
+feature/measleswatch-frontend
 // Request khusus multipart/form-data (misal upload citra inferensi MeaslesWatch AI).
 // Bersifat publik (tanpa header Authorization), timeout 15 detik, dan membiarkan browser
 // menentukan Content-Type beserta boundary multipart secara otomatis.
@@ -140,15 +207,31 @@ export async function requestMultipart<T>(
 }
 
 export function describeError(status: number, data: unknown): ApiError {
+
+export function describeError(
+  status: number,
+  data: unknown,
+): ApiError {
+
   const obj = (data ?? {}) as Record<string, unknown>
+
   let message: string
   const fields: Record<string, string> = {}
 
   if (status === 422 && Array.isArray(obj.detail)) {
-    for (const item of obj.detail as { loc?: (string | number)[]; msg?: string }[]) {
-      const key = String(item.loc?.[item.loc.length - 1] ?? '')
-      if (key) fields[key] = item.msg ?? 'Nilai tidak valid'
+    for (const item of obj.detail as {
+      loc?: (string | number)[]
+      msg?: string
+    }[]) {
+      const key = String(
+        item.loc?.[item.loc.length - 1] ?? '',
+      )
+
+      if (key) {
+        fields[key] = item.msg ?? 'Nilai tidak valid'
+      }
     }
+
     message = 'Periksa kembali isian yang ditandai.'
   } else if (typeof obj.detail === 'string') {
     message = obj.detail
@@ -163,5 +246,10 @@ export function describeError(status: number, data: unknown): ApiError {
         500: 'Terjadi kesalahan di server. Coba lagi.',
       }[status] ?? 'Terjadi kesalahan. Coba lagi.'
   }
-  return new ApiError(status, message, Object.keys(fields).length ? fields : undefined)
+
+  return new ApiError(
+    status,
+    message,
+    Object.keys(fields).length ? fields : undefined,
+  )
 }
