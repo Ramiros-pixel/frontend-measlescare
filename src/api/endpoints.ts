@@ -18,6 +18,8 @@ import type {
   KioskPatient,
   KioskFaceResponse,
   KioskCaptureResponse,
+  EvidenceReconciliationEvaluateRequest,
+  ReconciliationResponse,
 } from './types'
 
 export interface LoginInput {
@@ -163,6 +165,33 @@ export const measlesApi = {
       signal,
     )
   },
+}
+
+export const reconciliationApi = {
+  evaluate: (
+    input: EvidenceReconciliationEvaluateRequest,
+    kioskSessionToken?: string,
+    signal?: AbortSignal,
+  ) =>
+    request<ReconciliationResponse>('/reconciliation/evaluate', {
+      method: 'POST',
+      body: input,
+      headers: kioskSessionToken
+        ? { 'X-Kiosk-Session': kioskSessionToken }
+        : undefined,
+      signal,
+    }),
+
+  get: (idGejala: string, kioskSessionToken?: string, signal?: AbortSignal) =>
+    request<ReconciliationResponse>(
+      `/reconciliation/${encodeURIComponent(idGejala)}`,
+      {
+        headers: kioskSessionToken
+          ? { 'X-Kiosk-Session': kioskSessionToken }
+          : undefined,
+        signal,
+      },
+    ),
 }
 
 export const faceApi = {

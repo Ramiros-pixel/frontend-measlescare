@@ -6,12 +6,14 @@ import {
   pakarApi,
   measlesApi,
   kioskSessionApi,
+  reconciliationApi,
 } from '../../api/endpoints'
 
 import type {
   EvaluasiPakarResult,
   JawabanGejalaInput,
   MeaslesPredictResponse,
+  ReconciliationResponse,
 } from '../../api/types'
 
 import { isNetworkError, ApiError } from '../../api/client'
@@ -23,6 +25,7 @@ import {
 } from '../../lib/image'
 
 import { MeaslesResultCard } from '../../components/measles/MeaslesResultCard'
+import { ClinicalEvidenceCard } from '../../components/measles/ClinicalEvidenceCard'
 
 
 interface Patient {
@@ -294,6 +297,10 @@ export default function SkriningPage() {
   const [measlesError, setMeaslesError] = useState<string | null>(null)
   const activeInferenceRef = useRef<number>(0)
 
+  // Clinical Evidence Reconciliation Engine (CERE) State
+  const [reconciliationResult, setReconciliationResult] = useState<ReconciliationResponse | null>(null)
+  const [reconciliationLoading, setReconciliationLoading] = useState(false)
+
   useEffect(() => {
     if (!patient || !kioskSessionToken) {
       navigate('/user/skrining/identifikasi', { replace: true })
@@ -394,6 +401,42 @@ export default function SkriningPage() {
       }
     }
   }
+
+  // Trigger Clinical Evidence Reconciliation Engine (CERE)
+  useEffect(() => {
+    if (step === 'result' && idGejala && pakarResult) {
+      let cancelled = false
+      setReconciliationLoading(true)
+
+      reconciliationApi
+        .evaluate(
+          {
+            id_gejala: idGejala,
+            cv_prediction: measlesResult?.prediction ?? null,
+            cv_confidence: measlesResult?.confidence ?? null,
+            cv_probabilities: measlesResult?.probabilities ?? null,
+          },
+          kioskSessionToken ?? undefined,
+        )
+        .then((res) => {
+          if (!cancelled) {
+            setReconciliationResult(res)
+          }
+        })
+        .catch((err) => {
+          console.error('Evaluasi rekonsiliasi CERE gagal:', err)
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setReconciliationLoading(false)
+          }
+        })
+
+      return () => {
+        cancelled = true
+      }
+    }
+  }, [step, idGejala, pakarResult, measlesResult, kioskSessionToken])
 
   const capturePhoto = () => {
     const video = videoRef.current
@@ -1219,6 +1262,18 @@ export default function SkriningPage() {
                   ID pemeriksaan: {pakarResult.id_gejala}
                 </p>
               </div>
+
+              {/* Rekonsiliasi Bukti Klinis (CERE) */}
+              {reconciliationLoading && !reconciliationResult && (
+                <div className="mt-4 flex items-center justify-center gap-2 rounded-2xl border border-[#e1e9f4] bg-white p-6 text-xs text-[#8291a5]">
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#175cd3] border-t-transparent" />
+                  <span>Merekonsiliasi bukti klinis multimodal (CERE)...</span>
+                </div>
+              )}
+
+              {reconciliationResult && (
+                <ClinicalEvidenceCard reconciliation={reconciliationResult} className="mt-4" />
+              )}
 
               <div className="mt-4 rounded-2xl border border-[#dbe7f5] bg-[#f2f7ff] p-4">
                 <h3 className="flex items-center gap-2 text-sm font-bold text-[#175CD3]">

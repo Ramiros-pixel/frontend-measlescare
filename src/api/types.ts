@@ -178,3 +178,42 @@ export interface KioskCaptureResponse {
   completed: boolean
   message: string
 }
+
+export type ReconciliationStatus = 'CONSISTENT' | 'CONFLICTING' | 'INCOMPLETE'
+export type EvidenceValidationStatus = 'VALID' | 'MISSING' | 'INVALID' | 'FAILED'
+
+export interface EvidenceValidationDetail {
+  computer_vision: EvidenceValidationStatus
+  body_temperature: EvidenceValidationStatus
+  expert_system: EvidenceValidationStatus
+}
+
+export interface EvidenceReconciliationEvaluateRequest {
+  id_gejala: string
+  cv_prediction?: string | null
+  cv_confidence?: number | null
+  cv_probabilities?: Record<string, number> | null
+}
+
+export interface ReconciliationResponse {
+  id_reconciliation: string
+  id_gejala: string
+  reconciliation_status: ReconciliationStatus
+  summary: string
+  evidence_validation: EvidenceValidationDetail
+  cv_prediction?: string | null
+  cv_confidence?: number | null
+  measured_temp?: number | null
+  expert_category?: string | null
+  safety_alert: boolean
+  supporting_evidence: string[]
+  conflicting_evidence: string[]
+  missing_evidence: string[]
+  invalid_evidence: string[]
+  explanation: string
+  recommended_action: string
+  rule_version: string
+  is_diagnosis: boolean
+  disclaimer: string
+  created_at?: string | null
+}
