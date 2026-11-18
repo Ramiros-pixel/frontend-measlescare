@@ -24,8 +24,9 @@ import {
   MAX_IMAGE_SIZE_BYTES,
 } from '../../lib/image'
 
-import { MeaslesResultCard } from '../../components/measles/MeaslesResultCard'
-import { ClinicalEvidenceCard } from '../../components/measles/ClinicalEvidenceCard'
+import { UserEvidenceSummaryCard } from '../../components/measles/UserEvidenceSummaryCard'
+import { UserVisionResultCard } from '../../components/measles/UserVisionResultCard'
+import { ScreeningReport } from '../../components/screening/ScreeningReport'
 
 
 interface Patient {
@@ -505,47 +506,114 @@ export default function SkriningPage() {
 
     if (pakarResult.safety_alert) {
       return {
-        status: 'Perlu Penanganan Segera',
+        status: 'Perlu Penanganan Medis Segera',
         category: 'danger' as const,
         description:
-          'Sistem mendeteksi tanda bahaya. Pasien memerlukan penilaian medis segera.',
+          'Sistem mendeteksi tanda bahaya pada pasien. Pasien memerlukan penilaian dan penanganan medis segera.',
         recommendation:
-          'Segera bawa pasien ke fasilitas pelayanan kesehatan atau IGD. Jangan menunda pemeriksaan.',
+          'Segera bawa pasien ke fasilitas pelayanan kesehatan darurat atau IGD. Jangan menunda pemeriksaan.',
       }
     }
 
+    // Jika hasil CERE sudah tersedia, gunakan integrasi CERE multimodal
+    if (reconciliationResult) {
+      if (reconciliationResult.reconciliation_status === 'CONSISTENT') {
+        if (measlesResult?.prediction === 'Measles') {
+          return {
+            status: 'Perlu Pemeriksaan Lanjutan',
+            category: 'warning' as const,
+            description:
+              'Hasil pengukuran suhu tubuh, analisis gambar ruam, dan informasi keluhan saling mendukung adanya indikasi yang mengarah ke suspek campak.',
+            recommendation:
+              'Konsultasikan hasil pemeriksaan kepada dokter untuk evaluasi lebih lanjut. Jaga isolasi sementara untuk mencegah risiko penularan.',
+          }
+        }
+        return {
+          status: 'Tidak Ditemukan Indikator yang Mengarah pada Pola Klinis Campak',
+          category: 'normal' as const,
+          description:
+            'Seluruh hasil pemeriksaan saling mendukung bahwa saat ini tidak ditemukan indikator yang mengarah pada pola klinis campak.',
+          recommendation:
+            'Pantau kondisi tubuh dan istirahat yang cukup. Jika kondisi memburuk atau muncul gejala yang mengkhawatirkan, segera konsultasikan kepada tenaga kesehatan.',
+        }
+      }
+
+      if (reconciliationResult.reconciliation_status === 'CONFLICTING') {
+        return {
+          status: 'Terdapat Perbedaan Hasil Pemeriksaan',
+          category: 'warning' as const,
+          description:
+            'Hasil analisis gambar dan informasi gejala menunjukkan beberapa perbedaan. Pemeriksaan fisik langsung oleh dokter diperlukan untuk evaluasi akurat.',
+          recommendation:
+            'Lakukan pemeriksaan fisik langsung dan konsultasi kepada tenaga medis profesional di fasilitas pelayanan kesehatan.',
+        }
+      }
+
+      if (reconciliationResult.reconciliation_status === 'INCOMPLETE') {
+        return {
+          status: 'Data Pemeriksaan Belum Lengkap',
+          category: 'neutral' as const,
+          description:
+            'Beberapa data pemeriksaan belum tersedia secara menyeluruh sehingga evaluasi terpadu memerlukan pemeriksaan fisik langsung.',
+          recommendation:
+            'Lengkapi data pemeriksaan atau konsultasikan kondisi pasien kepada petugas kesehatan.',
+        }
+      }
+    }
+
+    // Fallback berdasarkan evaluasi gejala jika CERE belum selesai dimuat
     switch (pakarResult.forward_chaining.kategori) {
       case 'CLINICAL_AND_SUSPECTED':
         return {
-          status: 'Pola Gejala Mengarah ke Suspek Campak',
+          status: 'Perlu Pemeriksaan Lanjutan',
           category: 'warning' as const,
           description:
-            'Forward Chaining menemukan pola klinis dan pola suspected case-finding.',
+            'Ditemukan beberapa indikator gejala yang mengarah pada pola klinis campak.',
           recommendation:
             'Konsultasikan hasil skrining kepada tenaga kesehatan untuk pemeriksaan lebih lanjut.',
         }
 
       case 'CLINICAL_PATTERN_ONLY':
         return {
-          status: 'Pola Klinis Terdeteksi',
+          status: 'Ditemukan Beberapa Indikator Gejala',
           category: 'warning' as const,
           description:
-            'Sistem menemukan pola gejala klinis, tetapi pola suspected case-finding belum terpenuhi.',
+            'Beberapa gejala menunjukkan pola klinis yang perlu diperhatikan, tetapi belum seluruh indikator skrining kasus terpenuhi.',
           recommendation:
             'Pantau kondisi pasien dan konsultasikan hasil kepada tenaga kesehatan.',
         }
 
       default:
         return {
-          status: 'Pola Utama Belum Terpenuhi',
+          status: 'Tidak Ditemukan Indikator yang Mengarah pada Pola Klinis Campak',
           category: 'normal' as const,
           description:
-            'Kombinasi gejala belum memenuhi pola utama berdasarkan aturan Sistem Pakar.',
+            'Jawaban gejala saat ini belum menunjukkan kombinasi pola klinis campak.',
           recommendation:
             'Tetap pantau kondisi pasien. Jika gejala muncul atau memburuk, konsultasikan kepada tenaga kesehatan.',
         }
     }
-  }, [pakarResult])
+  }, [pakarResult, reconciliationResult, measlesResult])
+
+  const handlePrint = () => {
+    const rawName = patient?.name?.trim() || 'Pasien'
+    const sanitizedName =
+      rawName
+        .replace(/[^a-zA-Z0-9\s]/g, '')
+        .trim()
+        .replace(/\s+/g, '_') || 'Pasien'
+    const today = new Date().toISOString().split('T')[0]
+    const filename = `Laporan_Skrining_${sanitizedName}_${today}`
+
+    const originalTitle = document.title
+    document.title = filename
+
+    window.print()
+
+    window.setTimeout(() => {
+      document.title = originalTitle
+    }, 1500)
+  }
 
   const startSymptoms = async () => {
     if (!temperature) return
@@ -663,10 +731,10 @@ export default function SkriningPage() {
   const progress = step === 'result' ? 100 : (stepNumber / 3) * 100
 
   return (
-    <main className="relative h-dvh w-full overflow-hidden bg-[#f7faff] text-[#183b5b]">
+    <main className="relative h-dvh w-full overflow-hidden bg-[#f7faff] text-[#183b5b] print:h-auto print:overflow-visible print:bg-white">
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 overflow-hidden"
+        className="pointer-events-none absolute inset-0 overflow-hidden print:hidden"
       >
         <div className="absolute -left-36 -top-36 size-[340px] rounded-full bg-[#dce7ff]/55 blur-2xl" />
         <div className="absolute -top-48 left-[38%] h-[390px] w-[460px] rounded-[45%] bg-[#a4e9df]/45 blur-2xl" />
@@ -674,7 +742,7 @@ export default function SkriningPage() {
         <div className="absolute -bottom-48 -left-20 h-[300px] w-[400px] rounded-full bg-[#9db6f5]/30 blur-2xl" />
       </div>
 
-      <div className="relative z-10 mx-auto flex h-full w-full max-w-none flex-col px-4 py-3 sm:px-6 sm:py-4 lg:px-8">
+      <div className="relative z-10 mx-auto flex h-full w-full max-w-none flex-col px-4 py-3 sm:px-6 sm:py-4 lg:px-8 print:hidden">
         {/* HEADER */}
         <header className="flex shrink-0 items-center justify-between gap-3">
           <button
@@ -1076,6 +1144,7 @@ export default function SkriningPage() {
           {/* STEP 4: RESULT */}
           {step === 'result' && screeningResult && pakarResult && (
             <section className="mx-auto max-h-full w-full max-w-none overflow-y-auto rounded-3xl border border-white bg-white/95 p-5 shadow-lg sm:p-7">
+              {/* BAGIAN 1 — HEADER DAN STATUS SKRINING */}
               <div className="text-center">
                 <span className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-[#eaf1fd] text-[#175CD3]">
                   <Icon name="shield" size={30} />
@@ -1083,111 +1152,159 @@ export default function SkriningPage() {
                 <p className="mt-3 text-[10px] font-bold tracking-wider text-[#175CD3]">
                   HASIL PEMERIKSAAN AWAL
                 </p>
-                <h1 className="mt-1 text-2xl font-extrabold">
+                <h1 className="mt-1 text-2xl font-extrabold text-slate-900">
                   Hasil Skrining MeaslesCare
                 </h1>
-                <p className="mt-1 text-xs text-[#647990]">
-                  Hasil awal berdasarkan data yang telah dimasukkan.
+                <p className="mt-1 text-xs text-slate-500">
+                  Hasil awal berdasarkan data yang telah dimasukkan. Bukan diagnosis medis definitif.
                 </p>
               </div>
 
-              <div className={`mt-5 rounded-2xl border p-5 ${screeningResult.category === 'danger'
-                  ? 'border-[#fecdca] bg-[#fef3f2]'
-                  : screeningResult.category === 'warning'
-                    ? 'border-[#fedf89] bg-[#fffaeb]'
-                    : 'border-[#abefc6] bg-[#ecfdf3]'
-                }`}>
+              {/* Status Skrining Ramah Pasien */}
+              <div
+                className={`mt-5 rounded-2xl border p-5 ${
+                  screeningResult.category === 'danger'
+                    ? 'border-red-200 bg-red-50/70'
+                    : screeningResult.category === 'warning'
+                      ? 'border-amber-200 bg-amber-50/70'
+                      : screeningResult.category === 'neutral'
+                        ? 'border-slate-200 bg-slate-50'
+                        : 'border-emerald-200 bg-emerald-50/70'
+                }`}
+              >
                 <div className="flex items-start gap-3">
-                  <span className={`mt-0.5 ${screeningResult.category === 'danger'
-                      ? 'text-[#b42318]'
-                      : screeningResult.category === 'warning'
-                        ? 'text-[#b54708]'
-                        : 'text-[#067647]'
-                    }`}>
+                  <span
+                    className={`mt-0.5 ${
+                      screeningResult.category === 'danger'
+                        ? 'text-red-600'
+                        : screeningResult.category === 'warning'
+                          ? 'text-amber-600'
+                          : screeningResult.category === 'neutral'
+                            ? 'text-slate-500'
+                            : 'text-emerald-600'
+                    }`}
+                  >
                     <Icon name="alert" size={24} />
                   </span>
                   <div>
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#647990]">
-                      Status skrining
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                      Status Skrining
                     </p>
-                    <h2 className="mt-1 text-lg font-extrabold">
+                    <h2 className="mt-1 text-lg font-extrabold text-slate-900">
                       {screeningResult.status}
                     </h2>
-                    <p className="mt-2 text-xs leading-relaxed text-[#526174]">
+                    <p className="mt-1.5 text-xs leading-relaxed text-slate-700">
                       {screeningResult.description}
                     </p>
                   </div>
                 </div>
               </div>
 
-              <div className="mt-5 grid gap-4 md:grid-cols-[0.8fr_1.2fr]">
-                <div className="rounded-2xl border border-[#e1e9f4] p-4">
-                  <h3 className="text-sm font-bold">Ringkasan Pemeriksaan</h3>
+              {/* BAGIAN 2 — RINGKASAN HASIL PEMERIKSAAN (CERE) */}
+              {reconciliationLoading && !reconciliationResult && (
+                <div className="mt-5 flex items-center justify-center gap-2.5 rounded-2xl border border-slate-200 bg-white p-5 text-xs text-slate-500 shadow-sm">
+                  <div className="size-4 animate-spin rounded-full border-2 border-[#175CD3] border-t-transparent" />
+                  <span>Menyelaraskan seluruh hasil pemeriksaan...</span>
+                </div>
+              )}
+
+              {reconciliationResult && (
+                <UserEvidenceSummaryCard
+                  reconciliation={reconciliationResult}
+                  className="mt-5"
+                />
+              )}
+
+              {/* BAGIAN 3 — RINGKASAN PEMERIKSAAN */}
+              <div className="mt-5 grid gap-4 md:grid-cols-[0.85fr_1.15fr]">
+                {/* A. Suhu Tubuh & B. Foto Ruam */}
+                <div className="rounded-2xl border border-slate-200 bg-white p-4.5 shadow-sm">
+                  <h3 className="text-sm font-bold text-slate-900">Ringkasan Pemeriksaan</h3>
                   <div className="mt-3 space-y-3 text-xs">
                     <div>
-                      <p className="text-[#8291a5]">Suhu Tubuh</p>
-                      <p className="mt-0.5 font-bold">{temperature} °C</p>
+                      <p className="text-slate-500">Pengukuran Suhu Tubuh</p>
+                      <div className="mt-0.5 flex items-baseline gap-2">
+                        <span className="text-base font-bold text-slate-900">{temperature} °C</span>
+                        <span
+                          className={`text-[11px] font-semibold ${
+                            parseFloat(temperature) >= 37.8 ? 'text-red-600' : 'text-emerald-700'
+                          }`}
+                        >
+                          ({parseFloat(temperature) >= 37.8 ? 'Suhu Meningkat / Demam' : 'Suhu Normal'})
+                        </span>
+                      </div>
                     </div>
                     <div>
-                      <p className="text-[#8291a5]">Foto Ruam</p>
-                      <p className="mt-0.5 font-bold text-[#067647]">Berhasil diambil</p>
+                      <p className="text-slate-500">Pemeriksaan Foto Ruam</p>
+                      <p className="mt-0.5 font-bold text-emerald-700">Foto pemeriksaan berhasil diambil</p>
                     </div>
                   </div>
                   {photo && (
-                    <img
-                      src={photo}
-                      alt="Dokumentasi foto ruam"
-                      className="mt-4 aspect-video w-full rounded-xl object-cover"
-                    />
+                    <div className="mt-3.5 overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                      <img
+                        src={photo}
+                        alt="Dokumentasi foto ruam kulit pasien"
+                        className="aspect-video max-h-48 w-full object-cover"
+                      />
+                    </div>
                   )}
                 </div>
 
-                <div className="rounded-2xl border border-[#e1e9f4] p-4">
-                  <h3 className="text-sm font-bold">Indikator Gejala</h3>
+                {/* C. Indikator Gejala */}
+                <div className="rounded-2xl border border-slate-200 bg-white p-4.5 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-bold text-slate-900">Indikator Gejala</h3>
+                    <span className="text-[11px] font-medium text-slate-500">Jawaban Pasien</span>
+                  </div>
                   <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    {questions.map((question) => (
-                      <div
-                        key={question.key}
-                        className="flex items-center justify-between gap-2 rounded-xl bg-[#f7faff] px-3 py-2"
-                      >
-                        <span className="text-[11px] text-[#526174]">
-                          {question.title.replace('Apakah pasien ', '').replace('Apakah terdapat ', '').replace('Apakah ruam ', '').replace('Apakah mata ', '')}
-                        </span>
-                        <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-bold ${symptoms[question.key] === 'yes'
-                            ? question.danger
-                              ? 'bg-[#fef3f2] text-[#b42318]'
-                              : 'bg-[#fff4e5] text-[#b54708]'
-                            : 'bg-[#e6f4ea] text-[#067647]'
-                          }`}>
-                          {symptoms[question.key] === 'yes' ? 'Ya' : 'Tidak'}
-                        </span>
-                      </div>
-                    ))}
+                    {questions.map((question) => {
+                      const isYes = symptoms[question.key] === 'yes'
+                      return (
+                        <div
+                          key={question.key}
+                          className="flex items-center justify-between gap-2 rounded-xl bg-slate-50/80 px-3 py-2 border border-slate-100"
+                        >
+                          <span className="text-[11px] text-slate-700">
+                            {question.title
+                              .replace('Apakah pasien ', '')
+                              .replace('Apakah terdapat ', '')
+                              .replace('Apakah ruam ', '')
+                              .replace('Apakah mata ', '')}
+                          </span>
+                          <span
+                            className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                              isYes
+                                ? question.danger
+                                : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                            } ${
+                              isYes && question.danger
+                                ? 'bg-red-100 text-red-800 border border-red-200'
+                                : isYes
+                                  ? 'bg-amber-100 text-amber-900 border border-amber-200'
+                                  : ''
+                            }`}
+                          >
+                            {isYes ? 'Ya' : 'Tidak'}
+                          </span>
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               </div>
 
-              {/* HASIL ANALISIS CITRA RUAM — MEASLESWATCH AI */}
-              <div className="mt-4">
-                <div className="mb-2 flex items-center justify-between">
-                  <h3 className="text-sm font-bold text-[#183b5b]">
-                    Hasil Analisis Citra Ruam (MeaslesWatch AI)
-                  </h3>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#175CD3]">
-                    Deep Learning Vision
-                  </span>
-                </div>
-
+              {/* BAGIAN 4 — HASIL ANALISIS GAMBAR RUAM */}
+              <div className="mt-5">
                 {measlesLoading && (
-                  <div className="rounded-2xl border border-[#dbe7f5] bg-white p-6 shadow-sm">
+                  <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                     <div className="flex items-center gap-3">
                       <div className="size-5 animate-spin rounded-full border-2 border-[#175CD3] border-t-transparent" />
                       <div>
-                        <h4 className="text-sm font-bold text-[#183b5b]">
-                          Sedang Menganalisis Citra Ruam Kulit...
+                        <h4 className="text-sm font-bold text-slate-900">
+                          Sedang Menganalisis Gambar Ruam...
                         </h4>
-                        <p className="mt-0.5 text-xs text-[#647990]">
-                          Model AI MeaslesWatch sedang memproses estimasi klasifikasi ruam secara otomatis.
+                        <p className="mt-0.5 text-xs text-slate-500">
+                          Sistem sedang memeriksa pola gambar ruam kulit pasien.
                         </p>
                       </div>
                     </div>
@@ -1195,26 +1312,24 @@ export default function SkriningPage() {
                 )}
 
                 {!measlesLoading && measlesError && (
-                  <div className="rounded-2xl border border-[#fecdca] bg-[#fef3f2] p-4 shadow-sm">
+                  <div className="rounded-2xl border border-red-200 bg-red-50 p-4 shadow-sm">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-start gap-3">
-                        <span className="mt-0.5 text-[#b42318]">
+                        <span className="mt-0.5 text-red-600">
                           <Icon name="alert" size={20} />
                         </span>
                         <div>
-                          <h4 className="text-sm font-bold text-[#b42318]">
-                            Gagal Memproses Analisis Citra AI
+                          <h4 className="text-sm font-bold text-red-800">
+                            Gagal Memproses Gambar
                           </h4>
-                          <p className="mt-1 text-xs text-[#526174]">
-                            {measlesError}
-                          </p>
+                          <p className="mt-1 text-xs text-slate-700">{measlesError}</p>
                         </div>
                       </div>
                       <button
                         type="button"
                         onClick={() => runMeaslesInference(photoFile ?? photo)}
                         disabled={measlesLoading}
-                        className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-[#b42318] px-3 py-1.5 text-xs font-bold text-[#b42318] hover:bg-[#b42318] hover:text-white"
+                        className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-red-600 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-600 hover:text-white transition"
                       >
                         <Icon name="refresh" size={14} />
                         Coba Lagi
@@ -1224,82 +1339,122 @@ export default function SkriningPage() {
                 )}
 
                 {!measlesLoading && measlesResult && (
-                  <MeaslesResultCard result={measlesResult} />
+                  <UserVisionResultCard result={measlesResult} />
                 )}
               </div>
 
-              <div className="mt-4 rounded-2xl border border-[#e1e9f4] p-4">
-                <h3 className="text-sm font-bold">Hasil Evaluasi Sistem Pakar</h3>
-                <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-xl bg-[#f7faff] p-3">
-                    <p className="text-[10px] text-[#8291a5]">Forward Chaining</p>
-                    <p className="mt-1 text-xs font-bold">{pakarResult.forward_chaining.kategori}</p>
-                    <p className="mt-2 text-[10px] text-[#8291a5]">Aturan aktif</p>
-                    <p className="mt-1 text-xs font-semibold">
-                      {pakarResult.forward_chaining.aturan_aktif.length > 0
-                        ? pakarResult.forward_chaining.aturan_aktif.join(', ')
-                        : 'Tidak ada aturan aktif'}
-                    </p>
-                    <p className="mt-2 text-[10px] text-[#8291a5]">
-                      Clinical pattern: {pakarResult.forward_chaining.clinical_pattern ? 'Terpenuhi' : 'Tidak terpenuhi'}
-                    </p>
-                    <p className="text-[10px] text-[#8291a5]">
-                      Suspected pattern: {pakarResult.forward_chaining.suspected_pattern ? 'Terpenuhi' : 'Tidak terpenuhi'}
-                    </p>
-                  </div>
-                  <div className="rounded-xl bg-[#f7faff] p-3">
-                    <p className="text-[10px] text-[#8291a5]">Decision Tree - Hasil utama</p>
-                    <p className="mt-1 text-xs font-bold">{pakarResult.decision_tree.main_leaf}</p>
-                    <p className="mt-3 text-[10px] text-[#8291a5]">Decision Tree - Tanda bahaya</p>
-                    <p className="mt-1 text-xs font-bold">{pakarResult.decision_tree.safety_leaf}</p>
-                    <p className="mt-3 text-[10px] text-[#8291a5]">Safety Alert</p>
-                    <p className={`mt-1 text-xs font-bold ${pakarResult.safety_alert ? 'text-[#b42318]' : 'text-[#067647]'}`}>
-                      {pakarResult.safety_alert ? 'Terdapat tanda bahaya' : 'Tidak ditemukan tanda bahaya'}
-                    </p>
-                  </div>
+              {/* BAGIAN 5 — RINGKASAN EVALUASI GEJALA */}
+              <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="border-b border-slate-100 pb-3">
+                  <h3 className="text-base font-bold text-slate-900">Ringkasan Evaluasi Gejala</h3>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    Hasil telaah kombinasi keluhan gejala yang dilaporkan pasien
+                  </p>
                 </div>
-                <p className="mt-3 text-[10px] text-[#8291a5]">
-                  ID pemeriksaan: {pakarResult.id_gejala}
-                </p>
+
+                <div className="mt-3 rounded-xl bg-slate-50 p-4 text-xs leading-relaxed text-slate-800">
+                  <p className="font-semibold text-slate-900">
+                    {pakarResult.forward_chaining.kategori === 'CLINICAL_AND_SUSPECTED'
+                      ? 'Kombinasi gejala yang dilaporkan (demam, ruam, dan keluhan penyerta) mengarah pada pola klinis yang perlu diperhatikan dokter.'
+                      : pakarResult.forward_chaining.kategori === 'CLINICAL_PATTERN_ONLY'
+                        ? 'Beberapa gejala menunjukkan pola klinis yang perlu diperhatikan, tetapi belum seluruh indikator skrining kasus terpenuhi.'
+                        : pakarResult.forward_chaining.kategori === 'SUSPECTED_PATTERN_ONLY'
+                          ? 'Ditemukan beberapa indikator gejala awal yang perlu dipantau lebih lanjut.'
+                          : 'Jawaban gejala yang dilaporkan saat ini belum memenuhi kombinasi pola klinis campak.'}
+                  </p>
+
+                  {/* Gejala Positif yang Dilaporkan Pasien */}
+                  {questions.filter((q) => symptoms[q.key] === 'yes').length > 0 && (
+                    <div className="mt-3">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                        Gejala yang Dialami Pasien:
+                      </p>
+                      <div className="mt-1.5 flex flex-wrap gap-1.5">
+                        {questions
+                          .filter((q) => symptoms[q.key] === 'yes')
+                          .map((q) => (
+                            <span
+                              key={q.key}
+                              className={`inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-semibold ${
+                                q.danger
+                                  ? 'bg-red-50 border border-red-200 text-red-800'
+                                  : 'bg-blue-50 border border-blue-200 text-blue-800'
+                              }`}
+                            >
+                              ✓ {q.title
+                                .replace('Apakah pasien ', '')
+                                .replace('Apakah terdapat ', '')
+                                .replace('Apakah ruam ', '')
+                                .replace('Apakah mata ', '')
+                                .replace('?', '')
+                                .trim()}
+                            </span>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {/* Rekonsiliasi Bukti Klinis (CERE) */}
-              {reconciliationLoading && !reconciliationResult && (
-                <div className="mt-4 flex items-center justify-center gap-2 rounded-2xl border border-[#e1e9f4] bg-white p-6 text-xs text-[#8291a5]">
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#175cd3] border-t-transparent" />
-                  <span>Merekonsiliasi bukti klinis multimodal (CERE)...</span>
+              {/* BAGIAN 6 — SAFETY ALERT */}
+              <div
+                className={`mt-4 rounded-2xl border p-4.5 ${
+                  pakarResult.safety_alert
+                    ? 'border-red-300 bg-red-50/70 text-red-950'
+                    : 'border-emerald-200 bg-emerald-50/50 text-emerald-950'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <span
+                    className={`mt-0.5 ${pakarResult.safety_alert ? 'text-red-600' : 'text-emerald-600'}`}
+                  >
+                    <Icon name="alert" size={20} />
+                  </span>
+                  <div>
+                    <h4 className="text-sm font-bold">
+                      {pakarResult.safety_alert
+                        ? 'Peringatan Tanda Bahaya Terdeteksi'
+                        : 'Status Tanda Bahaya'}
+                    </h4>
+                    <p className="mt-1 text-xs leading-relaxed">
+                      {pakarResult.safety_alert
+                        ? 'Ditemukan tanda kegawatan medis pada pasien (seperti sesak napas, kejang, atau penurunan kesadaran). Segera bawa pasien ke fasilitas pelayanan kesehatan darurat (IGD) atau konsultasikan dengan dokter jaga tanpa penundaan!'
+                        : 'Tidak ditemukan tanda bahaya berdasarkan jawaban pemeriksaan yang diberikan.'}
+                    </p>
+                  </div>
                 </div>
-              )}
+              </div>
 
-              {reconciliationResult && (
-                <ClinicalEvidenceCard reconciliation={reconciliationResult} className="mt-4" />
-              )}
-
-              <div className="mt-4 rounded-2xl border border-[#dbe7f5] bg-[#f2f7ff] p-4">
-                <h3 className="flex items-center gap-2 text-sm font-bold text-[#175CD3]">
-                  <Icon name="info" size={17} />
-                  Rekomendasi Tindak Lanjut
-                </h3>
-                <p className="mt-2 text-xs leading-relaxed text-[#526b8d]">
+              {/* BAGIAN 7 — SARAN TINDAK LANJUT */}
+              <div className="mt-4 rounded-2xl border border-blue-200 bg-blue-50/50 p-4.5">
+                <h4 className="flex items-center gap-2 text-sm font-bold text-[#175CD3]">
+                  <Icon name="info" size={18} />
+                  Saran Tindak Lanjut
+                </h4>
+                <p className="mt-1.5 text-xs leading-relaxed text-slate-700">
                   {screeningResult.recommendation}
                 </p>
               </div>
 
-              <div className="mt-4 rounded-xl bg-[#f8fafc] p-3 text-[10px] leading-relaxed text-[#647990]">
-                <strong>Catatan:</strong> {pakarResult.catatan || 'Hasil ini merupakan skrining awal, bukan diagnosis medis.'} Hasil analisis citra oleh model AI MeaslesWatch dan hasil evaluasi Sistem Pakar merupakan alat bantu skrining awal, bukan diagnosis medis definitif. Penentuan diagnosis dan penanganan tetap memerlukan pemeriksaan langsung oleh tenaga kesehatan profesional.
+              {/* BAGIAN 8 — CATATAN BATASAN MEDIS */}
+              <div className="mt-4 rounded-xl bg-slate-100/80 p-3.5 text-[11px] leading-relaxed text-slate-600">
+                <strong className="font-semibold text-slate-800">Catatan Batasan Medis:</strong>{' '}
+                MeaslesCare merupakan sistem skrining awal yang membantu mengidentifikasi indikator
+                gejala dan pola gambar yang perlu diperhatikan. Hasil pemeriksaan ini bukan diagnosis
+                medis definitif. Penentuan diagnosis dan penanganan tetap memerlukan pemeriksaan
+                oleh dokter atau tenaga kesehatan profesional.
               </div>
 
-              <div className="mt-5 flex flex-col-reverse justify-between gap-3 sm:flex-row">
+              {/* BAGIAN 9 — TOMBOL AKSI */}
+              <div className="mt-6 flex flex-col-reverse justify-between gap-3 sm:flex-row">
                 <button
                   type="button"
                   onClick={() => navigate('/user')}
-                  className="rounded-xl border border-[#175CD3] px-5 py-3 text-sm font-bold text-[#175CD3] hover:bg-[#eaf1fd]"
+                  className="rounded-xl border border-[#175CD3] px-5 py-3 text-sm font-bold text-[#175CD3] transition hover:bg-[#eaf1fd]"
                 >
                   Kembali ke Beranda
                 </button>
-                <PrimaryButton
-                  onClick={() => window.print()}
-                >
+                <PrimaryButton onClick={handlePrint}>
                   Cetak Hasil
                 </PrimaryButton>
               </div>
@@ -1313,6 +1468,31 @@ export default function SkriningPage() {
       </div>
 
       <canvas ref={canvasRef} className="hidden" />
+
+      {/* LAPORAN KHUSUS CETAK PDF A4 */}
+      {step === 'result' && (
+        <div className="hidden print:block print-report-container p-4">
+          <ScreeningReport
+            patient={patient}
+            idGejala={idGejala || pakarResult?.id_gejala || null}
+            temperature={temperature}
+            photo={photo}
+            symptomsList={questions.map((q) => ({
+              key: q.key,
+              title: q.title
+                .replace('Apakah pasien ', '')
+                .replace('Apakah terdapat ', '')
+                .replace('Apakah ruam ', '')
+                .replace('Apakah mata ', ''),
+              answer: symptoms[q.key],
+              danger: q.danger,
+            }))}
+            pakarResult={pakarResult}
+            measlesResult={measlesResult}
+            reconciliationResult={reconciliationResult}
+          />
+        </div>
+      )}
     </main>
   )
 }
