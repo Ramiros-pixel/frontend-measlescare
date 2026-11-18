@@ -1,3 +1,4 @@
+
 export interface User {
   NIK: string
   Name: string
@@ -56,7 +57,6 @@ export type Role = 'R1' | 'R2'
 export function isAdmin(user: User | null | undefined): boolean {
   return user?.id_Role === 'R1'
 }
-
 
 export interface MasterGejala {
   kode_gejala: string
@@ -121,8 +121,6 @@ export interface HasilPakarResponse {
   }
 }
 
-feature/measleswatch-frontend
-// MeaslesWatch AI Types
 export type MeaslesClass =
   | 'Chickenpox'
   | 'Cowpox'
@@ -140,7 +138,7 @@ export interface MeaslesPredictResponse {
   probabilities: MeaslesProbabilities
   inference_time_ms: number
   disclaimer: string
-
+}
 
 export interface FaceRecognizeRequest {
   image: string
@@ -163,6 +161,7 @@ export interface KioskPatient {
   face_samples: number
   face_target: number
 }
+
 export interface KioskFaceResponse {
   recognized: boolean
   match: boolean
@@ -170,6 +169,7 @@ export interface KioskFaceResponse {
   name: string | null
   confidence: number | null
 }
+
 export interface KioskCaptureResponse {
   nik: string
   stored: number

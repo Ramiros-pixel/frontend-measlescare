@@ -1,23 +1,28 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-feature/measleswatch-frontend
-import { gejalaApi, pakarApi, measlesApi } from '../../api/endpoints'
+
+import {
+  pakarApi,
+  measlesApi,
+  kioskSessionApi,
+} from '../../api/endpoints'
+
 import type {
   EvaluasiPakarResult,
   JawabanGejalaInput,
   MeaslesPredictResponse,
 } from '../../api/types'
+
 import { isNetworkError, ApiError } from '../../api/client'
+
 import {
   dataUrlToBlob,
   SUPPORTED_IMAGE_MIME_TYPES,
   MAX_IMAGE_SIZE_BYTES,
 } from '../../lib/image'
-import { MeaslesResultCard } from '../../components/measles/MeaslesResultCard'
 
-import { kioskSessionApi, pakarApi } from '../../api/endpoints'
-import type { EvaluasiPakarResult, JawabanGejalaInput } from '../../api/types'
+import { MeaslesResultCard } from '../../components/measles/MeaslesResultCard'
 
 
 interface Patient {
