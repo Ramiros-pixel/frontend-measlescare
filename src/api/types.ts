@@ -193,6 +193,9 @@ export interface EvidenceReconciliationEvaluateRequest {
   cv_prediction?: string | null
   cv_confidence?: number | null
   cv_probabilities?: Record<string, number> | null
+  cv_status?: 'VALID' | 'MISSING' | 'INVALID' | 'FAILED' | null
+  expert_category?: string | null
+  safety_alert?: boolean | null
 }
 
 export interface ReconciliationResponse {

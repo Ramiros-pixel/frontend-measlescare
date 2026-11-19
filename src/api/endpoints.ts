@@ -182,7 +182,7 @@ export const reconciliationApi = {
       method: 'POST',
       body: input,
       headers: kioskSessionToken
-        ? { 'X-Kiosk-Session': kioskSessionToken }
+        ? { ...kioskHeaders, 'X-Kiosk-Session': kioskSessionToken }
         : undefined,
       signal,
     }),

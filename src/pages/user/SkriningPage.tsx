@@ -301,6 +301,8 @@ export default function SkriningPage() {
   // Clinical Evidence Reconciliation Engine (CERE) State
   const [reconciliationResult, setReconciliationResult] = useState<ReconciliationResponse | null>(null)
   const [reconciliationLoading, setReconciliationLoading] = useState(false)
+  const [reconciliationError, setReconciliationError] = useState<string | null>(null)
+  const [reconciliationRetry, setReconciliationRetry] = useState(0)
 
   useEffect(() => {
     if (!patient || !kioskSessionToken) {
@@ -368,6 +370,8 @@ export default function SkriningPage() {
     const inferenceId = ++activeInferenceRef.current
     setMeaslesLoading(true)
     setMeaslesError(null)
+    setReconciliationResult(null)
+    setReconciliationError(null)
 
     try {
       let payload: Blob | File
@@ -405,9 +409,10 @@ export default function SkriningPage() {
 
   // Trigger Clinical Evidence Reconciliation Engine (CERE)
   useEffect(() => {
-    if (step === 'result' && idGejala && pakarResult) {
-      let cancelled = false
+    if (step === 'result' && idGejala && pakarResult && !measlesLoading) {
+      const controller = new AbortController()
       setReconciliationLoading(true)
+      setReconciliationError(null)
 
       reconciliationApi
         .evaluate(
@@ -416,28 +421,45 @@ export default function SkriningPage() {
             cv_prediction: measlesResult?.prediction ?? null,
             cv_confidence: measlesResult?.confidence ?? null,
             cv_probabilities: measlesResult?.probabilities ?? null,
+            cv_status: measlesResult
+              ? 'VALID'
+              : measlesError
+                ? 'FAILED'
+                : photo
+                  ? 'MISSING'
+                  : 'MISSING',
+            expert_category: pakarResult.forward_chaining.kategori,
+            safety_alert: pakarResult.safety_alert,
           },
           kioskSessionToken ?? undefined,
+          controller.signal,
         )
         .then((res) => {
-          if (!cancelled) {
+          if (!controller.signal.aborted) {
             setReconciliationResult(res)
+            setReconciliationError(null)
           }
         })
         .catch((err) => {
-          console.error('Evaluasi rekonsiliasi CERE gagal:', err)
+          if (!controller.signal.aborted) {
+            console.error('Proses penggabungan hasil pemeriksaan gagal:', err)
+            setReconciliationResult(null)
+            setReconciliationError(
+              'Hasil pemeriksaan belum dapat digabungkan karena komunikasi dengan server gagal. Jangan gunakan ini sebagai hasil akhir. Coba lagi atau minta bantuan petugas.',
+            )
+          }
         })
         .finally(() => {
-          if (!cancelled) {
+          if (!controller.signal.aborted) {
             setReconciliationLoading(false)
           }
         })
 
       return () => {
-        cancelled = true
+        controller.abort()
       }
     }
-  }, [step, idGejala, pakarResult, measlesResult, kioskSessionToken])
+  }, [step, idGejala, pakarResult, measlesResult, measlesError, measlesLoading, photo, kioskSessionToken, reconciliationRetry])
 
   const capturePhoto = () => {
     const video = videoRef.current
@@ -460,6 +482,8 @@ export default function SkriningPage() {
     setPhotoFile(null)
     setMeaslesResult(null)
     setMeaslesError(null)
+    setReconciliationResult(null)
+    setReconciliationError(null)
     stopCamera()
   }
 
@@ -480,6 +504,8 @@ export default function SkriningPage() {
       setPhotoFile(file)
       setMeaslesResult(null)
       setMeaslesError(null)
+      setReconciliationResult(null)
+      setReconciliationError(null)
       setCameraError('')
       stopCamera()
     }
@@ -491,6 +517,8 @@ export default function SkriningPage() {
     setPhotoFile(null)
     setMeaslesResult(null)
     setMeaslesError(null)
+    setReconciliationResult(null)
+    setReconciliationError(null)
     setCameraError('')
   }
 
@@ -503,6 +531,17 @@ export default function SkriningPage() {
   // Frontend tidak menjalankan ulang aturan Forward Chaining / Decision Tree.
   const screeningResult = useMemo(() => {
     if (!pakarResult) return null
+
+    if (reconciliationError) {
+      return {
+        status: 'Hasil Pemeriksaan Belum Dapat Digabungkan',
+        category: 'neutral' as const,
+        description:
+          'Komunikasi untuk menggabungkan hasil pemeriksaan belum berhasil. Hasil gejala yang sudah tersedia masih dapat dilihat, tetapi ringkasan gabungan belum dapat ditetapkan.',
+        recommendation:
+          'Coba gabungkan ulang hasil pemeriksaan atau minta bantuan petugas. Jangan menyimpulkan kondisi ini sebagai positif atau negatif campak.',
+      }
+    }
 
     if (pakarResult.safety_alert) {
       return {
@@ -593,7 +632,7 @@ export default function SkriningPage() {
             'Tetap pantau kondisi pasien. Jika gejala muncul atau memburuk, konsultasikan kepada tenaga kesehatan.',
         }
     }
-  }, [pakarResult, reconciliationResult, measlesResult])
+  }, [pakarResult, reconciliationResult, reconciliationError, measlesResult])
 
   const handlePrint = () => {
     const rawName = patient?.name?.trim() || 'Pasien'
@@ -679,6 +718,8 @@ export default function SkriningPage() {
 
     setApiLoading(true)
     setApiError('')
+    setReconciliationResult(null)
+    setReconciliationError(null)
     stopCamera()
 
     // Jalankan inferensi citra ruam MeaslesWatch AI secara asinkron
@@ -1195,10 +1236,10 @@ export default function SkriningPage() {
                     <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
                       Status Skrining
                     </p>
-                    <h2 className="mt-1 text-lg font-extrabold text-slate-900">
+                    <h2 className="mt-1 text-2xl font-extrabold leading-tight text-slate-950 sm:text-3xl">
                       {screeningResult.status}
                     </h2>
-                    <p className="mt-1.5 text-xs leading-relaxed text-slate-700">
+                    <p className="mt-2 text-sm leading-relaxed text-slate-700 sm:text-base">
                       {screeningResult.description}
                     </p>
                   </div>
@@ -1207,9 +1248,23 @@ export default function SkriningPage() {
 
               {/* BAGIAN 2 — RINGKASAN HASIL PEMERIKSAAN (CERE) */}
               {reconciliationLoading && !reconciliationResult && (
-                <div className="mt-5 flex items-center justify-center gap-2.5 rounded-2xl border border-slate-200 bg-white p-5 text-xs text-slate-500 shadow-sm">
-                  <div className="size-4 animate-spin rounded-full border-2 border-[#175CD3] border-t-transparent" />
-                  <span>Menyelaraskan seluruh hasil pemeriksaan...</span>
+                <div className="mt-5 flex items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white p-5 text-sm font-semibold text-slate-600 shadow-sm">
+                  <div className="size-5 animate-spin rounded-full border-2 border-[#175CD3] border-t-transparent" />
+                  <span>Memproses dan menggabungkan seluruh hasil pemeriksaan...</span>
+                </div>
+              )}
+
+              {reconciliationError && (
+                <div className="mt-5 rounded-2xl border border-red-300 bg-red-50 p-5 text-slate-900 shadow-sm">
+                  <h3 className="text-lg font-extrabold text-red-900">Proses Penggabungan Hasil Belum Berhasil</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-red-800">{reconciliationError}</p>
+                  <button
+                    type="button"
+                    onClick={() => setReconciliationRetry((value) => value + 1)}
+                    className="mt-3 min-h-11 rounded-xl border border-red-600 bg-white px-4 py-2 text-sm font-bold text-red-700"
+                  >
+                    Coba Gabungkan Lagi
+                  </button>
                 </div>
               )}
 
@@ -1399,7 +1454,7 @@ export default function SkriningPage() {
 
               {/* BAGIAN 6 — SAFETY ALERT */}
               <div
-                className={`mt-4 rounded-2xl border p-4.5 ${
+                className={`mt-5 rounded-2xl border p-5 ${
                   pakarResult.safety_alert
                     ? 'border-red-300 bg-red-50/70 text-red-950'
                     : 'border-emerald-200 bg-emerald-50/50 text-emerald-950'
@@ -1409,31 +1464,51 @@ export default function SkriningPage() {
                   <span
                     className={`mt-0.5 ${pakarResult.safety_alert ? 'text-red-600' : 'text-emerald-600'}`}
                   >
-                    <Icon name="alert" size={20} />
+                    <Icon name="alert" size={24} />
                   </span>
                   <div>
-                    <h4 className="text-sm font-bold">
+                    <h4 className="text-lg font-extrabold">
                       {pakarResult.safety_alert
                         ? 'Peringatan Tanda Bahaya Terdeteksi'
-                        : 'Status Tanda Bahaya'}
+                        : 'Tidak Ada Tanda Bahaya yang Terdeteksi'}
                     </h4>
-                    <p className="mt-1 text-xs leading-relaxed">
+                    <p className="mt-2 text-sm leading-relaxed sm:text-base">
                       {pakarResult.safety_alert
-                        ? 'Ditemukan tanda kegawatan medis pada pasien (seperti sesak napas, kejang, atau penurunan kesadaran). Segera bawa pasien ke fasilitas pelayanan kesehatan darurat (IGD) atau konsultasikan dengan dokter jaga tanpa penundaan!'
-                        : 'Tidak ditemukan tanda bahaya berdasarkan jawaban pemeriksaan yang diberikan.'}
+                        ? `Berdasarkan jawaban pemeriksaan, ditemukan ${questions
+                            .filter((q) => q.danger && symptoms[q.key] === 'yes')
+                            .map((q) =>
+                              q.key === 'breathingDifficulty'
+                                ? 'kesulitan bernapas'
+                                : q.key === 'seizure'
+                                  ? 'kejang'
+                                  : 'penurunan kesadaran',
+                            )
+                            .join(', ') || 'tanda kondisi yang memerlukan perhatian segera'
+                          }. Segera cari bantuan tenaga kesehatan atau bawa pasien ke fasilitas kesehatan darurat. Jangan menunggu seluruh pemeriksaan selesai.`
+                        : 'Berdasarkan jawaban yang diberikan, sistem belum menemukan tanda bahaya yang memerlukan penanganan segera. Tetap pantau kondisi tubuh dan segera cari bantuan jika muncul sesak napas, kejang, penurunan kesadaran, atau kondisi memburuk. Hasil ini belum menjamin seseorang bebas dari penyakit.'}
                     </p>
                   </div>
                 </div>
               </div>
 
               {/* BAGIAN 7 — SARAN TINDAK LANJUT */}
-              <div className="mt-4 rounded-2xl border border-blue-200 bg-blue-50/50 p-4.5">
-                <h4 className="flex items-center gap-2 text-sm font-bold text-[#175CD3]">
-                  <Icon name="info" size={18} />
+              <div className="mt-5 rounded-2xl border border-blue-200 bg-blue-50/50 p-5">
+                <h4 className="flex items-center gap-2 text-lg font-extrabold text-[#175CD3]">
+                  <Icon name="info" size={22} />
                   Saran Tindak Lanjut
                 </h4>
-                <p className="mt-1.5 text-xs leading-relaxed text-slate-700">
-                  {screeningResult.recommendation}
+                <p className="mt-2 text-sm leading-relaxed text-slate-800 sm:text-base">
+                  {reconciliationError
+                    ? 'Minta bantuan petugas untuk mencoba menggabungkan hasil pemeriksaan kembali. Jangan menyimpulkan sendiri apakah hasil positif atau negatif.'
+                    : pakarResult.safety_alert
+                      ? 'Segera bawa pasien ke fasilitas pelayanan kesehatan darurat atau temui dokter jaga tanpa penundaan.'
+                      : reconciliationResult?.reconciliation_status === 'CONFLICTING'
+                        ? 'Hasil foto kulit, suhu tubuh, dan jawaban gejala memberikan informasi yang belum sepenuhnya selaras. Lakukan pemeriksaan langsung oleh tenaga kesehatan agar kondisi dapat dinilai secara menyeluruh.'
+                        : reconciliationResult?.reconciliation_status === 'INCOMPLETE'
+                          ? `Beberapa informasi pemeriksaan belum lengkap. ${!photo ? 'Ambil foto ruam kembali dengan pencahayaan yang jelas, ' : ''}${!temperature ? 'ukur ulang suhu tubuh, ' : ''}lalu lengkapi jawaban gejala dan minta bantuan petugas jika diperlukan.`
+                          : reconciliationResult?.reconciliation_status === 'CONSISTENT' && measlesResult?.prediction === 'Measles'
+                            ? 'Terdapat beberapa temuan yang perlu diperhatikan lebih lanjut. Segera konsultasikan hasil ini kepada tenaga kesehatan untuk pemeriksaan lanjutan. Batasi kontak dekat sementara apabila petugas menilai risiko penularan relevan.'
+                            : 'Hasil pemeriksaan yang tersedia saat ini belum menunjukkan kecenderungan kuat terhadap campak. Tetap pantau perubahan kondisi tubuh dan konsultasikan kepada tenaga kesehatan apabila muncul gejala baru atau kondisi memburuk.'}
                 </p>
               </div>
 
