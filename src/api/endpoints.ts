@@ -38,6 +38,11 @@ export interface RegisterInput {
   password: string
 }
 
+const kioskHeaders = {
+  'X-Kiosk-Key':
+    (import.meta.env.VITE_KIOSK_API_KEY as string | undefined) ?? '',
+}
+
 export const authApi = {
   register: (input: RegisterInput) =>
     request<User>('/auth/register', {
@@ -138,7 +143,7 @@ export const pakarApi = {
       method: 'POST',
       body: input,
       headers: kioskSessionToken
-        ? { 'X-Kiosk-Session': kioskSessionToken }
+        ? { ...kioskHeaders, 'X-Kiosk-Session': kioskSessionToken }
         : undefined,
     }),
 
@@ -206,11 +211,6 @@ export const faceApi = {
     }),
 }
 
-const kioskHeaders = {
-  'X-Kiosk-Key':
-    (import.meta.env.VITE_KIOSK_API_KEY as string | undefined) ?? '',
-}
-
 export const kioskSessionApi = {
   create: (NIK: string, image: string) =>
     request<{
@@ -228,7 +228,33 @@ export const kioskSessionApi = {
     request<GejalaRecord>('/kiosk-session/gejala', {
       method: 'POST',
       body: input,
-      headers: { 'X-Kiosk-Session': sessionToken },
+      headers: { ...kioskHeaders, 'X-Kiosk-Session': sessionToken },
+    }),
+
+  identifyFace: (image: string) =>
+    request<{
+      access_token: string
+      token_type: string
+      expires_in: number
+      patient: {
+        NIK: string
+        Name: string
+        Tempat_Tgl_Lahir?: string | null
+        Golongan_darah?: string | null
+        Email?: string | null
+        Alamat?: string | null
+      }
+      confidence: number
+    }>('/kiosk-session/identify-face', {
+      method: 'POST',
+      body: { image },
+      headers: kioskHeaders,
+    }),
+
+  revoke: (sessionToken: string) =>
+    request<{ message: string; revoked: boolean }>('/kiosk-session/revoke', {
+      method: 'POST',
+      headers: { ...kioskHeaders, 'X-Kiosk-Session': sessionToken },
     }),
 }
 
@@ -237,6 +263,13 @@ export const kioskApi = {
     request<KioskPatient>('/kiosk/identify-rfid', {
       method: 'POST',
       body: { rfid_uid },
+      headers: kioskHeaders,
+    }),
+
+  identifyFace: (image: string) =>
+    request<KioskPatient & { confidence?: number }>('/kiosk/identify-face', {
+      method: 'POST',
+      body: { image },
       headers: kioskHeaders,
     }),
 
