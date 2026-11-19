@@ -602,7 +602,12 @@ export default function SkriningPage() {
         .replace(/[^a-zA-Z0-9\s]/g, '')
         .trim()
         .replace(/\s+/g, '_') || 'Pasien'
-    const today = new Date().toISOString().split('T')[0]
+    const now = new Date()
+    const today = [
+      now.getFullYear(),
+      String(now.getMonth() + 1).padStart(2, '0'),
+      String(now.getDate()).padStart(2, '0'),
+    ].join('-')
     const filename = `Laporan_Skrining_${sanitizedName}_${today}`
 
     const originalTitle = document.title
@@ -1215,84 +1220,6 @@ export default function SkriningPage() {
                 />
               )}
 
-              {/* BAGIAN 3 — RINGKASAN PEMERIKSAAN */}
-              <div className="mt-5 grid gap-4 md:grid-cols-[0.85fr_1.15fr]">
-                {/* A. Suhu Tubuh & B. Foto Ruam */}
-                <div className="rounded-2xl border border-slate-200 bg-white p-4.5 shadow-sm">
-                  <h3 className="text-sm font-bold text-slate-900">Ringkasan Pemeriksaan</h3>
-                  <div className="mt-3 space-y-3 text-xs">
-                    <div>
-                      <p className="text-slate-500">Pengukuran Suhu Tubuh</p>
-                      <div className="mt-0.5 flex items-baseline gap-2">
-                        <span className="text-base font-bold text-slate-900">{temperature} °C</span>
-                        <span
-                          className={`text-[11px] font-semibold ${
-                            parseFloat(temperature) >= 37.8 ? 'text-red-600' : 'text-emerald-700'
-                          }`}
-                        >
-                          ({parseFloat(temperature) >= 37.8 ? 'Suhu Meningkat / Demam' : 'Suhu Normal'})
-                        </span>
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-slate-500">Pemeriksaan Foto Ruam</p>
-                      <p className="mt-0.5 font-bold text-emerald-700">Foto pemeriksaan berhasil diambil</p>
-                    </div>
-                  </div>
-                  {photo && (
-                    <div className="mt-3.5 overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
-                      <img
-                        src={photo}
-                        alt="Dokumentasi foto ruam kulit pasien"
-                        className="aspect-video max-h-48 w-full object-cover"
-                      />
-                    </div>
-                  )}
-                </div>
-
-                {/* C. Indikator Gejala */}
-                <div className="rounded-2xl border border-slate-200 bg-white p-4.5 shadow-sm">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-bold text-slate-900">Indikator Gejala</h3>
-                    <span className="text-[11px] font-medium text-slate-500">Jawaban Pasien</span>
-                  </div>
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    {questions.map((question) => {
-                      const isYes = symptoms[question.key] === 'yes'
-                      return (
-                        <div
-                          key={question.key}
-                          className="flex items-center justify-between gap-2 rounded-xl bg-slate-50/80 px-3 py-2 border border-slate-100"
-                        >
-                          <span className="text-[11px] text-slate-700">
-                            {question.title
-                              .replace('Apakah pasien ', '')
-                              .replace('Apakah terdapat ', '')
-                              .replace('Apakah ruam ', '')
-                              .replace('Apakah mata ', '')}
-                          </span>
-                          <span
-                            className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                              isYes
-                                ? question.danger
-                                : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                            } ${
-                              isYes && question.danger
-                                ? 'bg-red-100 text-red-800 border border-red-200'
-                                : isYes
-                                  ? 'bg-amber-100 text-amber-900 border border-amber-200'
-                                  : ''
-                            }`}
-                          >
-                            {isYes ? 'Ya' : 'Tidak'}
-                          </span>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              </div>
-
               {/* BAGIAN 4 — HASIL ANALISIS GAMBAR RUAM */}
               <div className="mt-5">
                 {measlesLoading && (
@@ -1353,14 +1280,23 @@ export default function SkriningPage() {
                 </div>
 
                 <div className="mt-3 rounded-xl bg-slate-50 p-4 text-xs leading-relaxed text-slate-800">
-                  <p className="font-semibold text-slate-900">
+                  <p className="text-sm font-extrabold text-slate-900">
                     {pakarResult.forward_chaining.kategori === 'CLINICAL_AND_SUSPECTED'
-                      ? 'Kombinasi gejala yang dilaporkan (demam, ruam, dan keluhan penyerta) mengarah pada pola klinis yang perlu diperhatikan dokter.'
+                      ? 'Pola Klinis Terpenuhi'
                       : pakarResult.forward_chaining.kategori === 'CLINICAL_PATTERN_ONLY'
-                        ? 'Beberapa gejala menunjukkan pola klinis yang perlu diperhatikan, tetapi belum seluruh indikator skrining kasus terpenuhi.'
+                        ? 'Beberapa Pola Gejala Perlu Diperhatikan'
+                        : pakarResult.forward_chaining.kategori === 'SUSPECTED_PATTERN_ONLY'
+                          ? 'Indikator Awal Perlu Dipantau'
+                          : 'Indikator Skrining Kasus Belum Terpenuhi'}
+                  </p>
+                  <p className="mt-1.5 text-xs leading-relaxed text-slate-700">
+                    {pakarResult.forward_chaining.kategori === 'CLINICAL_AND_SUSPECTED'
+                      ? 'Beberapa gejala menunjukkan pola klinis yang perlu diperhatikan berdasarkan jawaban pemeriksaan.'
+                      : pakarResult.forward_chaining.kategori === 'CLINICAL_PATTERN_ONLY'
+                        ? 'Beberapa gejala menunjukkan pola klinis, tetapi belum seluruh indikator skrining kasus terpenuhi.'
                         : pakarResult.forward_chaining.kategori === 'SUSPECTED_PATTERN_ONLY'
                           ? 'Ditemukan beberapa indikator gejala awal yang perlu dipantau lebih lanjut.'
-                          : 'Jawaban gejala yang dilaporkan saat ini belum memenuhi kombinasi pola klinis campak.'}
+                          : 'Belum seluruh indikator yang digunakan dalam skrining kasus terpenuhi.'}
                   </p>
 
                   {/* Gejala Positif yang Dilaporkan Pasien */}
@@ -1393,6 +1329,71 @@ export default function SkriningPage() {
                       </div>
                     </div>
                   )}
+                </div>
+              </div>
+
+              {/* BAGIAN 6 — RINGKASAN PEMERIKSAAN FISIK */}
+              <div className="mt-5 grid gap-4 md:grid-cols-[0.85fr_1.15fr]">
+                <div className="rounded-2xl border border-slate-200 bg-white p-4.5 shadow-sm">
+                  <h3 className="text-sm font-bold text-slate-900">Pengukuran Suhu dan Foto Ruam</h3>
+                  <div className="mt-3 space-y-3 text-xs">
+                    <div>
+                      <p className="text-slate-500">Pengukuran Suhu Tubuh</p>
+                      <div className="mt-0.5 flex items-baseline gap-2">
+                        <span className="text-base font-bold text-slate-900">{temperature} °C</span>
+                        <span className={`text-[11px] font-semibold ${parseFloat(temperature) >= 37.8 ? 'text-red-600' : 'text-emerald-700'}`}>
+                          ({parseFloat(temperature) >= 37.8 ? 'Suhu Meningkat / Demam' : 'Suhu Normal'})
+                        </span>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-slate-500">Foto Ruam</p>
+                      <p className="mt-0.5 font-bold text-emerald-700">
+                        {photo ? 'Foto pemeriksaan berhasil diambil' : 'Foto belum diambil'}
+                      </p>
+                    </div>
+                  </div>
+                  {photo && (
+                    <div className="mt-3.5 overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                      <img
+                        src={photo}
+                        alt="Dokumentasi foto ruam kulit pasien"
+                        className="aspect-video max-h-48 w-full object-contain"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-white p-4.5 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-bold text-slate-900">Indikator Gejala</h3>
+                    <span className="text-[11px] font-medium text-slate-500">Jawaban Pasien</span>
+                  </div>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {questions.map((question) => {
+                      const isYes = symptoms[question.key] === 'yes'
+                      return (
+                        <div key={question.key} className="flex items-center justify-between gap-2 rounded-xl border border-slate-100 bg-slate-50/80 px-3 py-2">
+                          <span className="text-[11px] text-slate-700">
+                            {question.title
+                              .replace('Apakah pasien ', '')
+                              .replace('Apakah terdapat ', '')
+                              .replace('Apakah ruam ', '')
+                              .replace('Apakah mata ', '')}
+                          </span>
+                          <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                            isYes && question.danger
+                              ? 'border border-red-200 bg-red-100 text-red-800'
+                              : isYes
+                                ? 'border border-amber-200 bg-amber-100 text-amber-900'
+                                : 'border border-emerald-200 bg-emerald-50 text-emerald-800'
+                          }`}>
+                            {isYes ? 'Ya' : 'Tidak'}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
               </div>
 

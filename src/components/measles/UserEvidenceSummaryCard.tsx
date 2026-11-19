@@ -34,9 +34,9 @@ export const UserEvidenceSummaryCard: React.FC<UserEvidenceSummaryCardProps> = (
         bgColor: 'bg-amber-50/40',
       }
       userSummary =
-        'Hasil dari beberapa pemeriksaan (pengukuran suhu, analisis gambar ruam, dan keluhan gejala) menunjukkan indikator yang saling mendukung adanya kecurigaan pola klinis campak.'
+        'Hasil dari beberapa pemeriksaan menunjukkan indikator yang saling mendukung dan perlu diperhatikan oleh tenaga kesehatan.'
       userExplanation =
-        'Pemeriksaan suhu tubuh mengonfirmasi adanya demam, gambar ruam menunjukkan kemiripan dengan pola campak, dan jawaban gejala memenuhi indikator yang perlu diperhatikan dokter.'
+        'Pengukuran suhu, gambar ruam, dan jawaban gejala memberikan hasil yang saling mendukung. Pemeriksaan lanjutan tetap diperlukan.'
     } else {
       statusBadge = {
         label: 'Hasil Pemeriksaan Saling Mendukung',

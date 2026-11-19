@@ -725,8 +725,8 @@ header.sticky {
   }
 
   .report-section {
-    break-inside: avoid !important;
-    page-break-inside: avoid !important;
+    break-inside: auto;
+    page-break-inside: auto;
   }
 
   .report-page-break {
